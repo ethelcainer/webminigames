@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geo-Sorter Minigame</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6; /* Light gray-green background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+            max-width: 900px;
+            width: 95%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #2c3e50; /* Dark blue-gray */
+            margin-bottom: 20px;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        #game-info {
+            font-size: 1.1em;
+            margin-bottom: 20px;
+            font-weight: bold;
+            color: #34495e;
+        }
+
+        #country-list {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+            min-height: 50px;
+            padding: 10px;
+            border: 2px dashed #bdc3c7;
+            border-radius: 10px;
+            background-color: #ecf0f1;
+        }
+
+        .country-card {
+            background-color: #3498db; /* Blue */
+            color: white;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: grab;
+            font-weight: bold;
+            box-shadow: 0 4px #2980b9;
+            transition: transform 0.1s;
+        }
+
+        .country-card:active {
+            cursor: grabbing;
+            box-shadow: 0 2px #2980b9;
+            transform: translateY(2px);
+        }
+
+        #continent-bins {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+        }
+
+        .continent-bin {
+            background-color: #e74c3c; /* Red for emphasis */
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            border: 3px solid #c0392b;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .continent-bin.drag-over {
+            background-color: #f1c40f; /* Yellow when dragging over */
+            border-color: #f39c12;
+        }
+
+        .continent-bin h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+            font-size: 1.3em;
+        }
+
+        .continent-bin .country-card {
+            background-color: #2ecc71; /* Green when correctly placed */
+            box-shadow: 0 4px #27ae60;
+        }
+
+        #restart-button {
+            margin-top: 25px;
+            padding: 10px 20px;
+            font-size: 1.1em;
+            background-color: #1abc9c; /* Turquoise */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px #16a085;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        #restart-button:hover {
+            background-color: #16a085;
+        }
+        #restart-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px #16a085;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🌍 Geo-Sorter: Continents & Countries 🗺️</h1>
+
+    <div id="game-info">
+        Drag each country into its correct continental bin!
+    </div>
+
+    <div id="country-list">
+        </div>
+
+    <div id="continent-bins">
+        </div>
+
+    <button id="restart-button" onclick="startGame()">Start/Restart Game</button>
+</div>
+
+<script>
+    const continentData = {
+        'Asia': ["Japan", "India", "Thailand", "China"],
+        'Europe': ["Germany", "France", "Italy", "Spain"],
+        'North America': ["Canada", "Mexico", "USA", "Cuba"],
+        'South America': ["Brazil", "Argentina", "Chile", "Peru"],
+        'Africa': ["Egypt", "Nigeria", "Kenya", "South Africa"],
+        // Skipping Australia/Oceania and Antarctica for simplicity
+    };
+
+    const countryListEl = document.getElementById('country-list');
+    const continentBinsEl = document.getElementById('continent-bins');
+    let countriesInPlay = [];
+
+    // --- Helper Functions ---
+
+    // Simple function to shuffle an array
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    function checkWin() {
+        const remainingCountries = countryListEl.querySelectorAll('.country-card').length;
+        if (remainingCountries === 0) {
+            // Check if ALL countries are correctly placed
+            let allCorrect = true;
+            for (const continent in continentData) {
+                const bin = document.getElementById(`bin-${continent.replace(/\s/g, '-')}`);
+                // Check if the number of cards in the bin matches the expected count
+                if (bin.querySelectorAll('.country-card').length !== continentData[continent].length) {
+                    allCorrect = false;
+                    break;
+                }
+            }
+
+            if (allCorrect) {
+                 document.getElementById('game-info').innerHTML = '🎉 **Congratulations! You sorted all countries correctly!** 🎉';
+                 // Prevent further dragging
+                 document.querySelectorAll('.country-card').forEach(card => card.draggable = false);
+            } else {
+                // This shouldn't happen with the current logic, but as a fallback
+                document.getElementById('game-info').textContent = 'Something is wrong. Please try restarting.';
+            }
+        }
+    }
+
+    // --- Drag and Drop Handlers ---
+
+    function handleDragStart(e) {
+        e.dataTransfer.setData('text/plain', e.target.textContent);
+        e.dataTransfer.effectAllowed = 'move';
+        // Store the country's correct continent data (for checking later)
+        const countryName = e.target.textContent;
+        const correctContinent = Object.keys(continentData).find(continent => continentData[continent].includes(countryName));
+        e.dataTransfer.setData('correct-continent', correctContinent);
+        e.target.classList.add('dragging');
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault(); // Necessary to allow dropping
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragEnter(e) {
+        e.preventDefault();
+        if (e.target.classList.contains('continent-bin')) {
+            e.target.classList.add('drag-over');
+        }
+    }
+
+    function handleDragLeave(e) {
+        if (e.target.classList.contains('continent-bin')) {
+            e.target.classList.remove('drag-over');
+        }
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        const droppedCountry = e.dataTransfer.getData('text/plain');
+        const correctContinent = e.dataTransfer.getData('correct-continent');
+        
+        let dropTarget = e.target;
+        // Traverse up to find the continent bin if a card or H2 was dropped on
+        while (dropTarget && !dropTarget.classList.contains('continent-bin')) {
+            dropTarget = dropTarget.parentElement;
+        }
+
+        if (dropTarget) {
+            dropTarget.classList.remove('drag-over');
+            const targetBinId = dropTarget.id.replace('bin-', '').replace(/-/g, ' ');
+            
+            const cardToMove = document.querySelector(`.country-card[data-country="${droppedCountry}"]`);
+
+            if (targetBinId === correctContinent) {
+                // Correct placement
+                dropTarget.appendChild(cardToMove);
+                // Change card style to indicate success
+                cardToMove.style.backgroundColor = '#2ecc71';
+                cardToMove.style.boxShadow = '0 4px #27ae60';
+                cardToMove.draggable = false; // Disable dragging once placed correctly
+                checkWin();
+            } else {
+                // Incorrect placement - flash a warning on the country list
+                countryListEl.style.backgroundColor = '#f3b4b4'; // Light red flash
+                setTimeout(() => {
+                    countryListEl.style.backgroundColor = '#ecf0f1';
+                }, 500);
+            }
+        }
+    }
+
+    // --- Game Setup ---
+
+    function createCountryCards() {
+        countryListEl.innerHTML = ''; // Clear existing cards
+        countriesInPlay = [];
+
+        // Collect all countries and flatten the list
+        for (const continent in continentData) {
+            countriesInPlay.push(...continentData[continent]);
+        }
+        shuffleArray(countriesInPlay); // Shuffle the countries before display
+
+        countriesInPlay.forEach(country => {
+            const card = document.createElement('div');
+            card.textContent = country;
+            card.classList.add('country-card');
+            card.draggable = true;
+            card.dataset.country = country; // Store country name for easy lookup
+            card.addEventListener('dragstart', handleDragStart);
+            countryListEl.appendChild(card);
+        });
+    }
+
+    function createContinentBins() {
+        continentBinsEl.innerHTML = ''; // Clear existing bins
+
+        const continents = Object.keys(continentData);
+        shuffleArray(continents); // Optional: shuffle bins
+
+        continents.forEach(continent => {
+            const bin = document.createElement('div');
+            bin.classList.add('continent-bin');
+            bin.id = `bin-${continent.replace(/\s/g, '-')}`;
+
+            const heading = document.createElement('h2');
+            heading.textContent = continent;
+            bin.appendChild(heading);
+
+            // Add drop listeners
+            bin.addEventListener('dragover', handleDragOver);
+            bin.addEventListener('dragenter', handleDragEnter);
+            bin.addEventListener('dragleave', handleDragLeave);
+            bin.addEventListener('drop', handleDrop);
+
+            continentBinsEl.appendChild(bin);
+        });
+    }
+    
+    function startGame() {
+        document.getElementById('game-info').textContent = 'Drag each country into its correct continental bin!';
+        createContinentBins();
+        createCountryCards();
+    }
+
+    // Initialize game on load
+    startGame();
+</script>
+
+</body>
+</html>
