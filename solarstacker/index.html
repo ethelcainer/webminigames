@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System Stacker</title>
+    <style>
+        /* General Styles for Fun, Child-Friendly Look */
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            background-color: #001f3f; /* Deep blue space background */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #fff;
+        }
+
+        .container {
+            background-color: #003366; /* Slightly lighter blue container */
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: 800px;
+            width: 90%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #ffcc00; /* Yellow header */
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        #instruction-text {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            color: #99ff99; /* Light green for instructions */
+        }
+
+        /* --- Planet Card Area --- */
+        #planet-pool {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 15px;
+            margin-bottom: 25px;
+            border: 2px dashed #95a5a6;
+            border-radius: 10px;
+            background-color: #004080;
+            min-height: 100px;
+        }
+
+        .planet-card {
+            font-size: 1em;
+            font-weight: bold;
+            text-align: center;
+            padding: 5px 10px;
+            margin: 8px;
+            border-radius: 50px; /* Pill shape */
+            cursor: grab;
+            box-shadow: 0 4px rgba(0, 0, 0, 0.3);
+            transition: transform 0.1s;
+            color: #000;
+            user-select: none; /* Prevent text selection */
+        }
+
+        .planet-card:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+        }
+
+        /* --- Drop Target Area --- */
+        #solar-system-track {
+            display: flex;
+            flex-direction: column; /* Stacks vertically */
+            align-items: center;
+            background-color: #001f3f;
+            border-radius: 10px;
+            padding: 10px;
+            position: relative;
+        }
+        
+        #sun-start {
+            background-color: #ff9900; /* Orange Sun */
+            color: #fff;
+            padding: 15px 30px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .drop-zone {
+            width: 80%;
+            height: 40px;
+            border: 2px solid #555;
+            border-radius: 5px;
+            margin: 5px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #002b55;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+
+        .drop-zone.drag-over {
+            background-color: #0050a0; /* Highlight when dragging over */
+        }
+
+        /* Success styling for placed cards */
+        .drop-zone .planet-card {
+            margin: 0;
+            box-shadow: none;
+            cursor: default;
+        }
+        
+        .correct-placement {
+            background-color: #2ecc71; /* Green success */
+            border-color: #27ae60;
+        }
+
+        #win-message {
+            margin-top: 20px;
+            font-size: 1.8em;
+            color: #f1c40f;
+            font-weight: bold;
+            display: none;
+        }
+
+        #restart-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1.1em;
+            background-color: #1abc9c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px #16a085;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🪐 Solar System Stacker ☀️</h1>
+    
+    <div id="instruction-text">
+        Drag the planets into the drop zones, starting from the Sun and moving outward!
+    </div>
+    
+    <div id="planet-pool">
+        </div>
+
+    <div id="solar-system-track">
+        <div id="sun-start">☀️ The Sun (Start Here) ☀️</div>
+        </div>
+
+    <div id="win-message">MISSION COMPLETE! You built the Solar System!</div>
+    
+    <button id="restart-button" onclick="startGame()">Restart Game</button>
+</div>
+
+<script>
+    // Planets in correct order
+    const PLANET_DATA = [
+        { name: "Mercury", color: "#b3b3b3" },
+        { name: "Venus", color: "#e7ad67" },
+        { name: "Earth", color: "#66c2ff" },
+        { name: "Mars", color: "#cc6666" },
+        { name: "Jupiter", color: "#e6e6a0" },
+        { name: "Saturn", color: "#d9c396" },
+        { name: "Uranus", color: "#80ffff" },
+        { name: "Neptune", color: "#4d4dff" }
+    ];
+
+    const planetPoolEl = document.getElementById('planet-pool');
+    const trackEl = document.getElementById('solar-system-track');
+    const winMessageEl = document.getElementById('win-message');
+    
+    let currentStep = 0; // Tracks which planet is expected next (0 to 7)
+
+    // --- Helper Functions ---
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    function checkWin() {
+        if (currentStep >= PLANET_DATA.length) {
+            winMessageEl.style.display = 'block';
+            document.getElementById('instruction-text').textContent = 'Amazing! You know the order of the planets!';
+            // Disable further dragging
+            document.querySelectorAll('.planet-card').forEach(card => card.draggable = false);
+        }
+    }
+
+    // --- Drag and Drop Handlers ---
+
+    function handleDragStart(e) {
+        e.dataTransfer.setData('text/plain', e.target.textContent);
+        e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault(); // Allows drop
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragEnter(e) {
+        e.preventDefault();
+        if (e.target.classList.contains('drop-zone')) {
+            e.target.classList.add('drag-over');
+        }
+    }
+
+    function handleDragLeave(e) {
+        if (e.target.classList.contains('drop-zone')) {
+            e.target.classList.remove('drag-over');
+        }
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        const droppedPlanetName = e.dataTransfer.getData('text/plain').trim();
+        let dropZone = e.target;
+        
+        // Find the drop-zone element
+        while (dropZone && !dropZone.classList.contains('drop-zone')) {
+            dropZone = dropZone.parentElement;
+        }
+
+        if (dropZone) {
+            dropZone.classList.remove('drag-over');
+            
+            const expectedPlanetName = PLANET_DATA[currentStep].name;
+            const expectedDropZoneId = `zone-${currentStep}`;
+            
+            // Check 1: Is this the correct planet? AND Check 2: Is this the correct drop zone?
+            if (droppedPlanetName === expectedPlanetName && dropZone.id === expectedDropZoneId) {
+                // SUCCESS!
+                const cardToMove = document.querySelector(`.planet-card[data-name="${droppedPlanetName}"]`);
+                
+                // Hide the old card from the pool
+                cardToMove.style.display = 'none';
+
+                // Display the name directly in the drop zone
+                dropZone.textContent = droppedPlanetName;
+                dropZone.classList.add('correct-placement');
+                
+                currentStep++; // Advance the step
+                
+                // Make the next drop zone visible
+                if (currentStep < PLANET_DATA.length) {
+                    document.getElementById(`zone-${currentStep}`).style.opacity = 1;
+                    document.getElementById(`zone-${currentStep}`).style.borderStyle = 'dashed';
+                }
+                
+                checkWin();
+            } else {
+                // FAIL! Provide visual feedback
+                planetPoolEl.style.backgroundColor = '#ff5555'; // Red flash
+                setTimeout(() => {
+                    planetPoolEl.style.backgroundColor = '#004080';
+                }, 500);
+            }
+        }
+    }
+
+    // --- Game Setup ---
+
+    function createPlanetCards() {
+        planetPoolEl.innerHTML = ''; 
+        let shuffledPlanets = [...PLANET_DATA];
+        shuffleArray(shuffledPlanets); // Shuffle the planets in the pool
+
+        shuffledPlanets.forEach(planet => {
+            const card = document.createElement('div');
+            card.textContent = planet.name;
+            card.classList.add('planet-card');
+            card.draggable = true;
+            card.dataset.name = planet.name;
+            card.style.backgroundColor = planet.color; // Use unique color
+            card.addEventListener('dragstart', handleDragStart);
+            planetPoolEl.appendChild(card);
+        });
+    }
+
+    function createDropZones() {
+        // Clear old zones, leaving only the Sun
+        const sunEl = document.getElementById('sun-start');
+        trackEl.innerHTML = '';
+        trackEl.appendChild(sunEl); 
+
+        PLANET_DATA.forEach((planet, index) => {
+            const zone = document.createElement('div');
+            zone.classList.add('drop-zone');
+            zone.id = `zone-${index}`;
+            
+            // Initially, only the first zone is visible/draggable
+            zone.style.opacity = index === 0 ? 1 : 0.4;
+            zone.style.borderStyle = index === 0 ? 'dashed' : 'solid';
+            
+            zone.textContent = `Drop Planet #${index + 1} Here`;
+
+            zone.addEventListener('dragover', handleDragOver);
+            zone.addEventListener('dragenter', handleDragEnter);
+            zone.addEventListener('dragleave', handleDragLeave);
+            zone.addEventListener('drop', handleDrop);
+
+            trackEl.appendChild(zone);
+        });
+    }
+    
+    function startGame() {
+        currentStep = 0;
+        winMessageEl.style.display = 'none';
+        document.getElementById('instruction-text').textContent = 'Drag the planets into the drop zones, starting from the Sun and moving outward!';
+        
+        createDropZones();
+        createPlanetCards();
+    }
+
+    // Initialize game on load
+    startGame();
+</script>
+
+</body>
+</html>
