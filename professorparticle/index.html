@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professor Particle's Lab 2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka One', cursive;
+            background-color: #050b14;
+            color: #e2e8f0;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .tech-font {
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        #lab-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
+            position: relative;
+        }
+
+        /* --- The Chamber --- */
+        #chamber-ring {
+            position: relative;
+            width: 360px;
+            height: 360px;
+            border-radius: 50%;
+            background: conic-gradient(from 180deg, #334155, #64748b, #334155);
+            padding: 10px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8), 0 0 0 2px #1e293b;
+            z-index: 10;
+        }
+
+        #chamber-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: #0f172a;
+            box-shadow: inset 0 0 30px #000;
+            position: relative;
+            overflow: hidden;
+            border: 4px solid #475569;
+        }
+
+        #glass-reflection {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 30;
+        }
+
+        /* Frost/Steam Overlays */
+        #effect-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 25;
+            opacity: 0;
+            transition: opacity 1s;
+            mix-blend-mode: screen;
+        }
+
+        /* --- UI Panels --- */
+        .panel {
+            background: rgba(15, 23, 42, 0.95); /* Slightly more opaque for readability */
+            border: 2px solid #334155;
+            border-radius: 16px;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Top Bar - FIXED ALIGNMENT */
+        #mission-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%; /* Center horizontally */
+            transform: translateX(-50%); /* Adjust back by 50% width */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 15px 40px; /* More horizontal padding */
+            z-index: 50;
+            border-color: #3b82f6;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+            width: max-content; /* Ensure container grows with text */
+            max-width: 90vw; /* Prevent overflow on small screens */
+            white-space: nowrap; /* Keep text on one line */
+        }
+
+        #instruction {
+            text-shadow: 0 0 10px rgba(59, 130, 246, 0.5); /* Glow effect on text */
+        }
+
+        #progress-track {
+            width: 250px;
+            height: 12px;
+            background: #1e293b;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #475569;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #4ade80);
+            transition: width 0.1s linear;
+            box-shadow: 0 0 10px #22c55e;
+        }
+
+        /* Material Selector */
+        #material-selector {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 50;
+        }
+
+        .mat-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 12px;
+            border: 2px solid #475569;
+            background: #1e293b;
+            color: #94a3b8;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .mat-btn span { font-size: 0.7rem; font-family: 'Share Tech Mono'; margin-top: 2px; }
+        .mat-btn:hover { background: #334155; transform: translateX(5px); }
+        .mat-btn.active { 
+            border-color: #3b82f6; 
+            color: #fff; 
+            background: #0f172a;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+            transform: scale(1.1);
+        }
+
+        /* Temp Control - FIXED CENTERING */
+        #control-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 500px;
+            padding: 20px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 50;
+        }
+
+        #temp-display {
+            font-size: 2.5rem;
+            text-shadow: 0 0 10px currentColor;
+        }
+
+        /* Custom Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            margin: 15px 0;
+        }
+        
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 12px;
+            background: linear-gradient(90deg, #3b82f6 0%, #fff 50%, #ef4444 100%);
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            height: 32px;
+            width: 32px;
+            border-radius: 50%;
+            background: #fff;
+            border: 4px solid #cbd5e1;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active { transform: scale(1.2); }
+
+        /* --- Info Display --- */
+        #state-display {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            text-align: right;
+            z-index: 40;
+        }
+        .info-card {
+            margin-bottom: 10px;
+            padding: 10px 15px;
+            background: rgba(0,0,0,0.5);
+            border-left: 3px solid #64748b;
+            backdrop-filter: blur(2px);
+        }
+
+        /* Animation */
+        @keyframes pulse-success {
+            0% { box-shadow: 0 0 20px #22c55e; border-color: #22c55e; }
+            100% { box-shadow: 0 0 60px #22c55e; border-color: #4ade80; }
+        }
+        .success-mode { animation: pulse-success 0.8s infinite alternate; }
+
+    </style>
+</head>
+<body>
+
+<div id="lab-container">
+    
+    <div id="mission-panel" class="panel">
+        <div id="instruction" class="text-2xl text-blue-400 font-bold tracking-wider">Loading...</div>
+        <div id="progress-track"><div id="progress-bar"></div></div>
+    </div>
+
+    <div id="material-selector">
+        <button class="mat-btn" onclick="setMaterial('water')" id="btn-water">
+            💧<span>H2O</span>
+        </button>
+        <button class="mat-btn" onclick="setMaterial('nitrogen')" id="btn-nitrogen">
+            ☁️<span>N2</span>
+        </button>
+        <button class="mat-btn" onclick="setMaterial('gold')" id="btn-gold">
+            🪙<span>Au</span>
+        </button>
+    </div>
+
+    <div id="state-display" class="tech-font">
+        <div class="info-card" style="border-color: #ef4444">
+            <div class="text-xs text-gray-400">BOILING POINT</div>
+            <div id="info-boil" class="text-xl text-red-300">100°C</div>
+        </div>
+        <div class="info-card" style="border-color: #3b82f6">
+            <div class="text-xs text-gray-400">MELTING POINT</div>
+            <div id="info-melt" class="text-xl text-blue-300">0°C</div>
+        </div>
+        <div class="mt-4 text-4xl font-bold opacity-30 tracking-widest" id="current-state-text">SOLID</div>
+    </div>
+
+    <div id="chamber-ring">
+        <div id="chamber-inner">
+            <div id="effect-overlay"></div>
+            <div id="glass-reflection"></div>
+            <canvas id="sim-canvas" width="340" height="340"></canvas>
+        </div>
+    </div>
+
+    <div id="control-panel" class="panel">
+        <div class="flex justify-between w-full items-end mb-2">
+            <div class="text-sm text-gray-400 tech-font">THERMOSTAT</div>
+            <div id="temp-display" class="tech-font text-blue-300">0°C</div>
+        </div>
+        <input type="range" id="temp-slider" oninput="updateTemp()">
+        <div class="flex justify-between w-full text-xs text-gray-500 font-bold">
+            <span>MIN</span>
+            <span>MAX</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- Configuration Data ---
+    const MATERIALS = {
+        water: {
+            name: "Water",
+            melt: 0,
+            boil: 100,
+            minTemp: -50,
+            maxTemp: 150,
+            color: { r: 56, g: 189, b: 248 }, // Light Blue
+            particleRadius: 8
+        },
+        nitrogen: {
+            name: "Nitrogen",
+            melt: -210,
+            boil: -196,
+            minTemp: -250,
+            maxTemp: -150,
+            color: { r: 200, g: 200, b: 255 }, // Cloudy White
+            particleRadius: 6
+        },
+        gold: {
+            name: "Gold",
+            melt: 1064,
+            boil: 2700,
+            minTemp: 0,
+            maxTemp: 3000,
+            color: { r: 250, g: 204, b: 21 }, // Gold
+            particleRadius: 10
+        }
+    };
+
+    // --- State ---
+    let currentMatKey = 'water';
+    let mat = MATERIALS.water;
+    let temperature = -20;
+    let currentState = 'solid';
+    let targetState = 'liquid';
+    let progress = 0;
+    
+    // Physics State
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // --- Audio ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+
+        if (type === 'success') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'hiss') { // Gas
+            const bufferSize = audioCtx.sampleRate * 0.1;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const noiseGain = audioCtx.createGain();
+            noise.connect(noiseGain); noiseGain.connect(audioCtx.destination);
+            noiseGain.gain.value = 0.05;
+            noise.start();
+        }
+    }
+
+    // --- Particle System ---
+    class Particle {
+        constructor(id) {
+            this.id = id;
+            this.reset();
+        }
+
+        reset() {
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
+            this.vx = 0;
+            this.vy = 0;
+            
+            // Lattice position for solids
+            const cols = 8;
+            const spacing = 30;
+            const offsetX = (width - (cols * spacing)) / 2;
+            const row = Math.floor(this.id / cols);
+            const col = this.id % cols;
+            this.homeX = offsetX + col * spacing + 15;
+            this.homeY = height - 50 - (row * spacing);
+        }
+
+        update() {
+            const tempPercent = (temperature - mat.minTemp) / (mat.maxTemp - mat.minTemp);
+            
+            if (currentState === 'solid') {
+                // Return to home position
+                this.vx += (this.homeX - this.x) * 0.1;
+                this.vy += (this.homeY - this.y) * 0.1;
+                this.vx *= 0.5;
+                this.vy *= 0.5;
+                
+                // Vibrate based on heat
+                const jitter = Math.max(0, (temperature - mat.minTemp)) * 0.05;
+                this.x += (Math.random() - 0.5) * jitter;
+                this.y += (Math.random() - 0.5) * jitter;
+
+            } else if (currentState === 'liquid') {
+                // Gravity
+                this.vy += 0.2;
+                
+                // Heat movement
+                const speed = 2 + tempPercent * 5;
+                this.vx += (Math.random() - 0.5);
+                
+                // Floor
+                if (this.y > height - 15) {
+                    this.y = height - 15;
+                    this.vy *= -0.4;
+                    this.vx *= 0.9;
+                }
+                // Walls
+                if (this.x < 10 || this.x > width - 10) this.vx *= -1;
+                
+                // Clamping
+                this.x += this.vx;
+                this.y += this.vy;
+
+            } else {
+                // GAS
+                const speed = 3 + tempPercent * 8;
+                
+                // Keep moving
+                if (Math.abs(this.vx) < 1) this.vx = (Math.random() - 0.5) * speed;
+                if (Math.abs(this.vy) < 1) this.vy = (Math.random() - 0.5) * speed;
+                
+                // Bounce
+                if (this.x < 10 || this.x > width - 10) this.vx *= -1;
+                if (this.y < 10 || this.y > height - 10) this.vy *= -1;
+                
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+        }
+
+        draw() {
+            ctx.fillStyle = `rgb(${mat.color.r}, ${mat.color.g}, ${mat.color.b})`;
+            
+            // Glow effect
+            if (currentState === 'gas') {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = `rgb(${mat.color.r}, ${mat.color.g}, ${mat.color.b})`;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, mat.particleRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Reset shadow
+            ctx.shadowBlur = 0;
+            
+            // Draw Face
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            if (currentState === 'solid') {
+                // Shivering
+                ctx.fillRect(this.x - 4, this.y - 2, 3, 3); // Eye
+                ctx.fillRect(this.x + 1, this.y - 2, 3, 3); // Eye
+                ctx.beginPath(); ctx.moveTo(this.x-3, this.y+3); ctx.lineTo(this.x+3, this.y+3); ctx.stroke();
+            } else if (currentState === 'liquid') {
+                // Happy
+                ctx.beginPath(); ctx.arc(this.x, this.y+1, 3, 0, Math.PI); ctx.fill();
+                ctx.fillRect(this.x - 3, this.y - 3, 2, 2);
+                ctx.fillRect(this.x + 1, this.y - 3, 2, 2);
+            } else {
+                // Crazy
+                ctx.beginPath(); ctx.arc(this.x, this.y+2, 3, 0, Math.PI*2); ctx.fill();
+                ctx.fillRect(this.x - 4, this.y - 4, 3, 3);
+                ctx.fillRect(this.x + 1, this.y - 4, 3, 3);
+            }
+        }
+    }
+
+    // --- Init ---
+    function init() {
+        particles = [];
+        for(let i=0; i<50; i++) particles.push(new Particle(i));
+        setMaterial('water');
+        loop();
+    }
+
+    function setMaterial(key) {
+        currentMatKey = key;
+        mat = MATERIALS[key];
+        
+        // Reset UI active states
+        document.querySelectorAll('.mat-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`btn-${key}`).classList.add('active');
+        
+        // Reset Temp Slider
+        const slider = document.getElementById('temp-slider');
+        slider.min = mat.minTemp;
+        slider.max = mat.maxTemp;
+        slider.value = mat.minTemp; // Start cold
+        
+        // Update Info
+        document.getElementById('info-boil').textContent = mat.boil + "°C";
+        document.getElementById('info-melt').textContent = mat.melt + "°C";
+        
+        updateTemp();
+        particles.forEach(p => p.reset());
+        pickNewMission();
+    }
+
+    function updateTemp() {
+        const slider = document.getElementById('temp-slider');
+        temperature = parseInt(slider.value);
+        
+        const display = document.getElementById('temp-display');
+        display.textContent = temperature + "°C";
+        
+        // Color code temperature display
+        if (temperature < mat.melt) display.style.color = '#93c5fd'; // Cold Blue
+        else if (temperature > mat.boil) display.style.color = '#fca5a5'; // Hot Red
+        else display.style.color = '#86efac'; // Liquid Green
+
+        checkState();
+    }
+
+    function checkState() {
+        let oldState = currentState;
+        
+        if (temperature < mat.melt) currentState = 'solid';
+        else if (temperature >= mat.melt && temperature < mat.boil) currentState = 'liquid';
+        else currentState = 'gas';
+        
+        document.getElementById('current-state-text').textContent = currentState.toUpperCase();
+        
+        // Update Overlay Effects
+        const overlay = document.getElementById('effect-overlay');
+        if (currentState === 'solid') {
+            overlay.style.background = 'radial-gradient(circle, transparent 20%, rgba(255,255,255,0.2) 100%)'; // Frosty
+            overlay.style.opacity = 1;
+        } else if (currentState === 'gas') {
+            overlay.style.background = 'rgba(255,255,255,0.1)'; // Steamy
+            overlay.style.opacity = 0.5;
+        } else {
+            overlay.style.opacity = 0;
+        }
+
+        // Gameplay Progress
+        if (currentState === targetState) {
+            progress += 0.8;
+            if (currentState === 'gas' && Math.random() > 0.9) playSound('hiss');
+        } else {
+            progress = Math.max(0, progress - 1);
+        }
+        
+        document.getElementById('progress-bar').style.width = Math.min(100, progress) + '%';
+        
+        if (progress >= 100) {
+            handleWin();
+        }
+    }
+
+    function pickNewMission() {
+        const states = ['solid', 'liquid', 'gas'];
+        // Pick a state different from current
+        const options = states.filter(s => s !== currentState);
+        targetState = options[Math.floor(Math.random() * options.length)];
+        
+        let verb = "TURN";
+        if (targetState === 'solid') verb = "FREEZE";
+        if (targetState === 'liquid') verb = "MELT";
+        if (targetState === 'gas') verb = "BOIL";
+        
+        document.getElementById('instruction').innerHTML = `${verb} THE ${mat.name.toUpperCase()}!`;
+        progress = 0;
+    }
+
+    function handleWin() {
+        playSound('success');
+        document.getElementById('chamber-ring').classList.add('success-mode');
+        document.getElementById('instruction').textContent = "EXCELLENT!";
+        document.getElementById('instruction').classList.add('text-green-400');
+        
+        progress = 0;
+        
+        setTimeout(() => {
+            document.getElementById('chamber-ring').classList.remove('success-mode');
+            document.getElementById('instruction').classList.remove('text-green-400');
+            pickNewMission();
+        }, 1500);
+    }
+
+    // --- Loop ---
+    function loop() {
+        ctx.clearRect(0, 0, width, height);
+        particles.forEach(p => {
+            p.update();
+            p.draw();
+        });
+        checkState();
+        requestAnimationFrame(loop);
+    }
+
+    // Start
+    init();
+
+</script>
+
+</body>
+</html>
