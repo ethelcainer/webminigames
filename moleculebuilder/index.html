@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molecule Builder: Balancing Act</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the atoms and scale */
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&display=swap');
+        
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #2b2d42; /* Dark slate background */
+        }
+
+        .atom {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: 800;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            cursor: grab;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .atom:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+            box-shadow: 0 8px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .drop-bin {
+            /* Removed fixed min-height here to rely on tailwind classes */
+            border: 3px dashed #8d99ae;
+            background-color: #3b3d56;
+        }
+
+        .drop-zone-active {
+            border-color: #ff9900;
+            box-shadow: 0 0 15px #ff9900;
+        }
+
+        .scale-pan {
+            /* Removed fixed min-height here to rely on tailwind classes */
+            background-color: #1a1a2e;
+            border: 2px solid #5a5a7d;
+        }
+
+        /* Atom Colors */
+        .H-color { background-color: #3498db; } /* Blue (Hydrogen) */
+        .O-color { background-color: #e74c3c; } /* Red (Oxygen) */
+        .C-color { background-color: #2ecc71; } /* Green (Carbon) */
+        .N-color { background-color: #9b59b6; } /* Purple (Nitrogen) */
+        .Na-color { background-color: #f1c40f; } /* Yellow (Sodium) */
+        .Cl-color { background-color: #1abc9c; } /* Turquoise (Chlorine) */
+
+        /* Formula display styling */
+        .chemical-formula {
+            font-size: 1.1em; /* Ensures the formula stands out */
+        }
+    </style>
+</head>
+<body class="p-6">
+
+<div id="app" class="container mx-auto max-w-4xl p-8 bg-gray-800 rounded-xl shadow-2xl text-white">
+
+    <h1 class="text-4xl text-center mb-4 text-amber-400">
+        ⚛️ Molecule Builder: Balancing Act
+    </h1>
+    <p id="instruction" class="text-center mb-8 text-lg text-gray-400">
+        Drag atoms to the empty scale pan to construct the target molecule. The scale must be balanced!
+    </p>
+
+    <div id="game-info" class="flex justify-between items-center mb-6 p-4 rounded-lg bg-gray-700">
+        <div class="text-xl font-bold">Target: <span id="target-molecule" class="text-green-400"></span></div>
+        <div class="text-xl font-bold">Level: <span id="current-level">1</span> / <span id="max-level"></span></div>
+        <button id="restart-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg" onclick="startGame()">
+            Restart Game
+        </button>
+    </div>
+
+    <div class="flex justify-center items-end relative h-80">
+        <div class="w-4 h-full bg-gray-600 absolute bottom-0 z-0"></div>
+        <div class="w-20 h-5 bg-gray-600 absolute top-0 z-0"></div>
+
+        <div class="absolute top-10 left-1/4 transform -translate-x-1/2 scale-pan p-3 rounded-lg flex flex-wrap justify-center items-center w-64 h-auto min-h-[6rem] z-10 transition-all duration-300">
+            <div class="absolute top-0 right-0 p-1 text-sm bg-indigo-500 rounded-bl-lg">Target</div>
+            <div id="target-placeholder" class="text-3xl text-gray-500">?</div>
+            <div id="target-atoms" class="flex flex-wrap justify-center items-center gap-1">
+                </div>
+        </div>
+
+        <div id="player-pan" class="absolute top-10 right-1/4 transform translate-x-1/2 scale-pan drop-bin p-3 rounded-lg flex flex-wrap justify-center items-center w-64 h-auto min-h-[6rem] z-10 transition-all duration-300">
+            <div class="absolute top-0 left-0 p-1 text-sm bg-red-500 rounded-br-lg">Your Atoms</div>
+            </div>
+    </div>
+
+    <div class="mt-8">
+        <h2 class="text-2xl text-center mb-4 text-sky-400">Atom Pool</h2>
+        <div id="atom-pool" class="drop-bin p-4 rounded-xl flex flex-wrap justify-center items-center gap-4 min-h-[150px]">
+            </div>
+    </div>
+    
+    <div id="status-message" class="text-center text-2xl mt-8 h-8 font-extrabold">
+        </div>
+</div>
+
+<script>
+    // Utility function to convert a standard formula string (e.g., "C6H12O6") 
+    // to an HTML string with subscripts (e.g., "C<sub>6</sub>H<sub>12</sub>O<sub>6</sub>")
+    function formatFormulaForHTML(formula) {
+        // Regex looks for an element symbol (1 or 2 letters) followed by a number
+        return formula.replace(/([A-Z][a-z]?)([0-9]+)/g, '$1<sub>$2</sub>');
+    }
+
+    // UPDATED MOLECULE LIST
+    const MOLECULE_LEVELS = [
+        { name: "Water", formula: "H₂O", atoms: { H: 2, O: 1 }, formulaHtml: formatFormulaForHTML("H2O") },
+        { name: "Carbon Dioxide", formula: "CO₂", atoms: { C: 1, O: 2 }, formulaHtml: formatFormulaForHTML("CO2") },
+        { name: "Methane", formula: "CH₄", atoms: { C: 1, H: 4 }, formulaHtml: formatFormulaForHTML("CH4") },
+        { name: "Ammonia", formula: "NH₃", atoms: { N: 1, H: 3 }, formulaHtml: formatFormulaForHTML("NH3") },
+        { name: "Hydrochloric Acid", formula: "HCl", atoms: { H: 1, Cl: 1 }, formulaHtml: formatFormulaForHTML("HCl") },
+        { name: "Sodium Chloride", formula: "NaCl", atoms: { Na: 1, Cl: 1 }, formulaHtml: formatFormulaForHTML("NaCl") },
+        { name: "Glucose", formula: "C₆H₁₂O₆", atoms: { C: 6, H: 12, O: 6 }, formulaHtml: formatFormulaForHTML("C6H12O6") },
+    ];
+
+    // UPDATED ATOM PROPERTIES
+    const ATOM_PROPERTIES = {
+        'H': { color: 'H-color', weight: 1, name: 'Hydrogen' },
+        'O': { color: 'O-color', weight: 16, name: 'Oxygen' },
+        'C': { color: 'C-color', weight: 12, name: 'Carbon' },
+        'N': { color: 'N-color', weight: 14, name: 'Nitrogen' },
+        'Na': { color: 'Na-color', weight: 23, name: 'Sodium' },
+        'Cl': { color: 'Cl-color', weight: 35, name: 'Chlorine' },
+    };
+
+    const atomPoolEl = document.getElementById('atom-pool');
+    const playerPanEl = document.getElementById('player-pan');
+    const targetMoleculeEl = document.getElementById('target-molecule');
+    const targetAtomsEl = document.getElementById('target-atoms');
+    const targetPlaceholderEl = document.getElementById('target-placeholder');
+    const statusMessageEl = document.getElementById('status-message');
+    const currentLevelEl = document.getElementById('current-level');
+    const maxLevelEl = document.getElementById('max-level');
+
+    let currentLevel = 0;
+    let targetMolecule = null;
+    maxLevelEl.textContent = MOLECULE_LEVELS.length;
+
+    // --- Core Logic ---
+
+    function createAtomElement(symbol) {
+        const props = ATOM_PROPERTIES[symbol];
+        const atom = document.createElement('div');
+        atom.textContent = symbol;
+        atom.classList.add('atom', props.color, 'shadow-md', 'hover:shadow-lg');
+        atom.draggable = true;
+        atom.dataset.symbol = symbol;
+        atom.dataset.weight = props.weight;
+        atom.dataset.name = props.name;
+        
+        atom.addEventListener('dragstart', handleDragStart);
+        atom.addEventListener('dragend', handleDragEnd);
+        return atom;
+    }
+
+    function calculatePanWeight(panElement) {
+        let totalWeight = 0;
+        const atoms = panElement.querySelectorAll('.atom');
+        atoms.forEach(atom => {
+            totalWeight += parseInt(atom.dataset.weight);
+        });
+        return totalWeight;
+    }
+
+    function updateScaleUI() {
+        const targetWeight = calculateTargetWeight();
+        const playerWeight = calculatePanWeight(playerPanEl);
+        
+        const difference = playerWeight - targetWeight;
+        let tilt = 0;
+        const maxTilt = 5; 
+
+        if (difference > 0) {
+            tilt = Math.min(maxTilt, difference * 0.15); 
+            playerPanEl.style.transform = `translate(50%, 0) rotate(${tilt}deg)`;
+        } else if (difference < 0) {
+            tilt = Math.max(-maxTilt, difference * 0.15); 
+            playerPanEl.style.transform = `translate(50%, 0) rotate(${tilt}deg)`;
+        } else {
+            playerPanEl.style.transform = 'translate(50%, 0) rotate(0deg)';
+        }
+
+        if (playerWeight === targetWeight && isMoleculeCorrect()) {
+            winRound();
+        }
+    }
+
+    function calculateTargetWeight() {
+        let totalWeight = 0;
+        for (const symbol in targetMolecule.atoms) {
+            const count = targetMolecule.atoms[symbol];
+            const weight = ATOM_PROPERTIES[symbol].weight;
+            totalWeight += count * weight;
+        }
+        return totalWeight;
+    }
+
+    function isMoleculeCorrect() {
+        if (!targetMolecule) return false;
+
+        const required = targetMolecule.atoms;
+        const playerAtoms = {};
+        
+        playerPanEl.querySelectorAll('.atom').forEach(atom => {
+            const symbol = atom.dataset.symbol;
+            playerAtoms[symbol] = (playerAtoms[symbol] || 0) + 1;
+        });
+
+        for (const symbol in required) {
+            if (playerAtoms[symbol] !== required[symbol]) {
+                return false;
+            }
+        }
+        
+        for (const symbol in playerAtoms) {
+            if (playerAtoms[symbol] > (required[symbol] || 0)) {
+                 return false; 
+            }
+        }
+
+        return true;
+    }
+
+    function winRound() {
+        playerPanEl.style.transform = 'translate(50%, 0) rotate(0deg)';
+        statusMessageEl.innerHTML = `<span class="text-lime-400">✅ SUCCESS! Balanced ${targetMolecule.name} (${targetMolecule.formulaHtml})!</span>`;
+        
+        currentLevel++;
+        playerPanEl.removeEventListener('drop', handleDrop);
+        playerPanEl.classList.remove('drop-zone-active');
+
+        if (currentLevel < MOLECULE_LEVELS.length) {
+            setTimeout(loadLevel, 3000);
+        } else {
+            statusMessageEl.innerHTML = '<span class="text-yellow-400">🏆 MISSION COMPLETE! All Molecules Built! 🏆</span>';
+            document.getElementById('instruction').textContent = 'You are a master chemist! Click Restart to play again.';
+            currentLevelEl.textContent = MOLECULE_LEVELS.length;
+        }
+    }
+
+    // --- Setup and Initialization ---
+
+    function loadLevel() {
+        targetMolecule = MOLECULE_LEVELS[currentLevel];
+        
+        playerPanEl.innerHTML = '';
+        playerPanEl.addEventListener('drop', handleDrop);
+        playerPanEl.classList.add('drop-zone-active');
+        statusMessageEl.textContent = '';
+        currentLevelEl.textContent = currentLevel + 1;
+        targetPlaceholderEl.style.display = 'none';
+
+        // Display formula using HTML subscripts
+        targetMoleculeEl.innerHTML = `<span class="chemical-formula">${targetMolecule.formulaHtml}</span> (${targetMolecule.name})`;
+        
+        targetAtomsEl.innerHTML = '';
+        for (const symbol in targetMolecule.atoms) {
+            const count = targetMolecule.atoms[symbol];
+            for (let i = 0; i < count; i++) {
+                const atom = createAtomElement(symbol);
+                atom.draggable = false;
+                atom.classList.remove('shadow-md', 'hover:shadow-lg');
+                atom.style.opacity = 0.7; 
+                targetAtomsEl.appendChild(atom);
+            }
+        }
+        
+        populateAtomPool();
+        updateScaleUI();
+        
+        document.getElementById('instruction').innerHTML = `Target: Build ${targetMolecule.name} (<span class="chemical-formula">${targetMolecule.formulaHtml}</span>) using the atoms below.`;
+    }
+
+    function populateAtomPool() {
+        atomPoolEl.innerHTML = '';
+        const requiredAtomSymbols = Object.keys(ATOM_PROPERTIES); 
+        
+        requiredAtomSymbols.forEach(symbol => {
+            let count = 6; 
+            if (symbol === 'H' || symbol === 'O') {
+                count = 15;
+            } else if (symbol === 'C') {
+                count = 8;
+            }
+            
+            for (let i = 0; i < count; i++) {
+                atomPoolEl.appendChild(createAtomElement(symbol));
+            }
+        });
+    }
+    
+    function startGame() {
+        currentLevel = 0;
+        shuffleArray(MOLECULE_LEVELS);
+        maxLevelEl.textContent = MOLECULE_LEVELS.length;
+        loadLevel();
+    }
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    // --- Drag and Drop Handlers ---
+
+    let draggedAtom = null;
+
+    function handleDragStart(e) {
+        draggedAtom = e.target;
+        e.dataTransfer.setData('text/plain', draggedAtom.dataset.symbol);
+        e.dataTransfer.effectAllowed = 'move';
+        draggedAtom.style.opacity = '0.5'; 
+        playerPanEl.classList.add('drop-zone-active');
+    }
+
+    function handleDragEnd(e) {
+        draggedAtom.style.opacity = '1';
+        playerPanEl.classList.remove('drop-zone-active');
+        draggedAtom = null;
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault(); 
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        
+        const isPlayerPan = e.currentTarget.id === 'player-pan';
+        const isAtomPool = e.currentTarget.id === 'atom-pool';
+
+        if (draggedAtom) {
+            if (isAtomPool && draggedAtom.parentElement.id === 'player-pan') {
+                draggedAtom.parentElement.removeChild(draggedAtom);
+                e.currentTarget.appendChild(draggedAtom);
+                updateScaleUI();
+            }
+            else if (isPlayerPan && draggedAtom.parentElement.id === 'atom-pool') {
+                draggedAtom.parentElement.removeChild(draggedAtom);
+                e.currentTarget.appendChild(draggedAtom);
+                
+                statusMessageEl.textContent = `Added ${draggedAtom.dataset.name}! Check the balance.`;
+                statusMessageEl.style.color = '#34d399';
+                setTimeout(() => statusMessageEl.textContent = '', 1500);
+
+                updateScaleUI();
+            }
+        }
+    }
+
+    // Attach drag/drop listeners globally
+    atomPoolEl.addEventListener('dragover', handleDragOver);
+    atomPoolEl.addEventListener('drop', handleDrop);
+    playerPanEl.addEventListener('dragover', handleDragOver);
+    playerPanEl.addEventListener('drop', handleDrop);
+    
+    // Initial call to start the game
+    startGame();
+</script>
+
+</body>
+</html>
