@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Word Smith's Forge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #1a1c20;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        h1, h2, .fantasy-font {
+            font-family: 'MedievalSharp', cursive;
+        }
+
+        /* --- Inventory Items (Raw Materials) --- */
+        .word-shard {
+            background: linear-gradient(145deg, #374151, #1f2937);
+            border: 2px solid #4b5563;
+            color: #d1d5db;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: grab;
+            user-select: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .word-shard:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+
+        .word-shard:hover {
+            border-color: #fbbf24; /* Amber hover */
+            color: #fff;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+        }
+
+        /* --- The Anvil Slots --- */
+        .anvil-slot {
+            width: 120px;
+            height: 80px;
+            background-color: #111827;
+            border: 3px dashed #6b7280;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .anvil-slot.highlight {
+            border-color: #fbbf24;
+            background-color: #1f2937;
+            box-shadow: inset 0 0 20px rgba(251, 191, 36, 0.2);
+        }
+
+        /* --- Animations --- */
+        @keyframes hammer-strike {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.9) rotate(-2deg); }
+            70% { transform: scale(1.05) rotate(2deg); }
+            100% { transform: scale(1); }
+        }
+
+        .striking {
+            animation: hammer-strike 0.3s ease-in-out;
+        }
+
+        @keyframes spark-burst {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+        .spark-effect {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle, #fbbf24 0%, transparent 70%);
+            animation: spark-burst 0.5s ease-out forwards;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* --- Crafted Gallery --- */
+        .crafted-item {
+            background: linear-gradient(145deg, #065f46, #064e3b);
+            border: 2px solid #34d399;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: pop-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes pop-in {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Header -->
+    <div class="text-center mb-6">
+        <h1 class="text-5xl text-amber-400 mb-2 drop-shadow-lg">The Word Smith's Forge</h1>
+        <p class="text-gray-400">Combine base words to forge magical compound items!</p>
+    </div>
+
+    <!-- Main Game Area -->
+    <div class="flex flex-col md:flex-row gap-8 w-full max-w-5xl">
+        
+        <!-- Left: The Forge (Crafting Area) -->
+        <div class="flex-1 bg-gray-800 rounded-2xl p-8 border-4 border-gray-700 shadow-2xl relative overflow-hidden">
+            <!-- Background Decorative Elements -->
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
+
+            <h2 class="text-2xl text-center text-gray-300 mb-8 fantasy-font">The Anvil</h2>
+
+            <!-- Drop Slots -->
+            <div class="flex justify-center items-center gap-4 mb-8">
+                <div id="slot-1" class="anvil-slot" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <span class="text-gray-600 text-sm pointer-events-none">Drop Word 1</span>
+                </div>
+                <div class="text-4xl text-gray-500 font-bold">+</div>
+                <div id="slot-2" class="anvil-slot" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <span class="text-gray-600 text-sm pointer-events-none">Drop Word 2</span>
+                </div>
+            </div>
+
+            <!-- Forge Button -->
+            <div class="flex justify-center relative">
+                <div id="spark-container" class="absolute top-0 left-0 w-full h-full flex justify-center items-center pointer-events-none"></div>
+                <button onclick="forgeWords()" id="forge-btn" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-10 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.5)] transition-all transform hover:scale-105 active:scale-95 text-xl fantasy-font border-2 border-amber-300">
+                    🔨 FORGE!
+                </button>
+            </div>
+
+            <!-- Result Message -->
+            <div id="message-area" class="h-16 mt-6 flex justify-center items-center text-center">
+                <p class="text-gray-400 italic">Drag raw materials onto the anvil slots...</p>
+            </div>
+
+            <!-- Inventory (Raw Materials) -->
+            <div class="mt-8 border-t border-gray-700 pt-6">
+                <h3 class="text-gray-400 mb-4 text-sm uppercase tracking-wider text-center">Raw Materials</h3>
+                <div id="inventory" class="flex flex-wrap justify-center gap-3">
+                    <!-- Words injected via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Gallery (Collection) -->
+        <div class="w-full md:w-80 bg-gray-900 rounded-2xl p-6 border-2 border-gray-800 shadow-xl">
+            <h2 class="text-2xl text-amber-500 mb-4 fantasy-font text-center">Discovery Log</h2>
+            <div class="text-center mb-4 text-sm text-gray-500">
+                Discovered: <span id="score">0</span> / <span id="total-count">0</span>
+            </div>
+            <div id="gallery" class="flex flex-col gap-3 h-96 overflow-y-auto pr-2 custom-scrollbar">
+                <!-- Crafted items appear here -->
+                <div class="text-center text-gray-600 mt-10 italic text-sm">
+                    No items forged yet.<br>Start crafting!
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- Data: Recipes ---
+    const RECIPES = [
+        { w1: "Sun", w2: "Flower", result: "Sunflower", icon: "🌻", desc: "A bloom that follows the light." },
+        { w1: "Rain", w2: "Bow", result: "Rainbow", icon: "🌈", desc: "A bridge of colors in the sky." },
+        { w1: "Cup", w2: "Cake", result: "Cupcake", icon: "🧁", desc: "A tiny treat for one." },
+        { w1: "Fire", w2: "Fly", result: "Firefly", icon: "🪰", desc: "A bug with a glowing lantern." },
+        { w1: "Star", w2: "Fish", result: "Starfish", icon: "⭐", desc: "A celestial shape in the sea." },
+        { w1: "Door", w2: "Bell", result: "Doorbell", icon: "🔔", desc: "Chimes when visitors arrive." },
+        { w1: "Pan", w2: "Cake", result: "Pancake", icon: "🥞", desc: "Flat, fluffy, and loves syrup." },
+        { w1: "Tooth", w2: "Brush", result: "Toothbrush", icon: "🪥", desc: "Keeps your smile shiny." },
+        { w1: "Basket", w2: "Ball", result: "Basketball", icon: "🏀", desc: "Dribble, shoot, score!" },
+        { w1: "Jelly", w2: "Fish", result: "Jellyfish", icon: "🪼", desc: "A wobbly drifter of the ocean." }
+    ];
+
+    // Extract unique base words for inventory
+    let baseWords = [];
+    RECIPES.forEach(r => {
+        if(!baseWords.includes(r.w1)) baseWords.push(r.w1);
+        if(!baseWords.includes(r.w2)) baseWords.push(r.w2);
+    });
+    // Shuffle words
+    baseWords.sort(() => Math.random() - 0.5);
+
+    const inventoryEl = document.getElementById('inventory');
+    const slot1El = document.getElementById('slot-1');
+    const slot2El = document.getElementById('slot-2');
+    const galleryEl = document.getElementById('gallery');
+    const msgEl = document.getElementById('message-area');
+    const scoreEl = document.getElementById('score');
+    
+    document.getElementById('total-count').innerText = RECIPES.length;
+
+    let discoveredCount = 0;
+    let audioCtx = null;
+
+    // --- Audio System (Synthesizer) ---
+    // Simple beeps and boops to avoid external files
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function playSound(type) {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        if (type === 'drop') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'forge') {
+            // Metallic Clang
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
+            gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'success') {
+            // Magical Chime
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        } else if (type === 'fail') {
+            // Low buzz
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.3);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
+    }
+
+    // --- Init Inventory ---
+    baseWords.forEach(word => {
+        const div = document.createElement('div');
+        div.classList.add('word-shard');
+        div.draggable = true;
+        div.innerText = word;
+        div.id = 'word-' + word;
+        div.ondragstart = drag;
+        inventoryEl.appendChild(div);
+    });
+
+    // --- Drag & Drop Logic ---
+    function drag(ev) {
+        ev.dataTransfer.setData("text", ev.target.id);
+        playSound('drop'); // Subtle sound on pick up logic overlap
+    }
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+        ev.currentTarget.classList.add('highlight');
+    }
+    
+    // Add event listeners to remove highlight when drag leaves
+    [slot1El, slot2El].forEach(slot => {
+        slot.addEventListener('dragleave', () => slot.classList.remove('highlight'));
+    });
+
+    function drop(ev) {
+        ev.preventDefault();
+        ev.currentTarget.classList.remove('highlight');
+        var data = ev.dataTransfer.getData("text");
+        var draggedElement = document.getElementById(data);
+        
+        // If slot already has a child (that isn't the placeholder text), move it back to inventory
+        if (ev.currentTarget.children.length > 0) {
+             const existingItem = ev.currentTarget.querySelector('.word-shard');
+             if(existingItem) inventoryEl.appendChild(existingItem);
+        }
+        
+        // Remove placeholder spans if present
+        const span = ev.currentTarget.querySelector('span');
+        if(span) span.style.display = 'none';
+
+        ev.currentTarget.appendChild(draggedElement);
+        playSound('drop');
+    }
+
+    // --- Forging Logic ---
+    function forgeWords() {
+        const item1 = slot1El.querySelector('.word-shard');
+        const item2 = slot2El.querySelector('.word-shard');
+
+        // Visual Shake
+        const btn = document.getElementById('forge-btn');
+        btn.classList.add('striking');
+        setTimeout(() => btn.classList.remove('striking'), 300);
+
+        if (!item1 || !item2) {
+            msgEl.innerHTML = `<span class="text-red-400">The anvil is incomplete. Place two words!</span>`;
+            playSound('fail');
+            return;
+        }
+
+        playSound('forge'); // Clang!
+
+        const w1 = item1.innerText;
+        const w2 = item2.innerText;
+
+        // Check Logic
+        const match = RECIPES.find(r => 
+            (r.w1 === w1 && r.w2 === w2) || (r.w1 === w2 && r.w2 === w1)
+        );
+
+        if (match) {
+            // Success!
+            setTimeout(() => {
+                successEffect(match);
+                // Return items to inventory
+                inventoryEl.appendChild(item1);
+                inventoryEl.appendChild(item2);
+                clearSlots();
+            }, 300); // Wait for hammer strike animation
+        } else {
+            // Failure
+            setTimeout(() => {
+                msgEl.innerHTML = `<span class="text-gray-400">Nothing happened. "${w1}${w2}" is not a compound word.</span>`;
+                playSound('fail');
+            }, 300);
+        }
+    }
+
+    function successEffect(recipe) {
+        playSound('success');
+        
+        // Spark visual
+        const spark = document.createElement('div');
+        spark.classList.add('spark-effect');
+        document.getElementById('spark-container').appendChild(spark);
+        setTimeout(() => spark.remove(), 500);
+
+        // Update Gallery
+        if (galleryEl.children[0].classList.contains('text-center')) {
+            galleryEl.innerHTML = ''; // Remove empty state text
+        }
+
+        // Check if already discovered
+        const existingId = `crafted-${recipe.result}`;
+        if (!document.getElementById(existingId)) {
+            const card = document.createElement('div');
+            card.id = existingId;
+            card.classList.add('crafted-item');
+            card.innerHTML = `
+                <span class="text-2xl">${recipe.icon}</span>
+                <div class="flex flex-col">
+                    <span class="font-bold text-amber-300">${recipe.result}</span>
+                    <span class="text-xs text-gray-200">${recipe.desc}</span>
+                </div>
+            `;
+            galleryEl.insertBefore(card, galleryEl.firstChild);
+            
+            // Update Score
+            discoveredCount++;
+            scoreEl.innerText = discoveredCount;
+            
+            msgEl.innerHTML = `<span class="text-green-400 font-bold text-lg">Forged: ${recipe.result}!</span>`;
+        } else {
+             msgEl.innerHTML = `<span class="text-amber-200">You have already forged ${recipe.result}.</span>`;
+        }
+    }
+
+    function clearSlots() {
+        const span1 = slot1El.querySelector('span');
+        const span2 = slot2El.querySelector('span');
+        if(span1) span1.style.display = 'block';
+        if(span2) span2.style.display = 'block';
+    }
+
+</script>
+</body>
+</html>
