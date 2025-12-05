@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forest Beat Maker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka One', cursive;
+            background-color: #1a202c;
+            color: #fff;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        #app-container {
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #2f855a 0%, #0f2f23 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- The Sequencer Grid --- */
+        .sequencer-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(8, 1fr); /* Label + 8 steps */
+            gap: 12px;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            border: 4px solid #48bb78;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 900px;
+            width: 95%;
+        }
+
+        /* --- Instrument Labels --- */
+        .track-label {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.5rem;
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .track-label:active { transform: scale(0.9); }
+        .track-label.playing { transform: scale(1.2); filter: brightness(1.3); }
+
+        /* --- Beat Pads (The Squares) --- */
+        .beat-pad {
+            aspect-ratio: 1/1;
+            background-color: #2d3748;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.1s;
+            border: 2px solid #4a5568;
+            position: relative;
+        }
+
+        .beat-pad:hover { border-color: #a0aec0; }
+        
+        /* Active State (User clicked it) */
+        .beat-pad.active {
+            background-color: var(--color);
+            box-shadow: 0 0 15px var(--color);
+            border-color: #fff;
+            transform: scale(0.95);
+        }
+
+        /* Current Step Highlight (The sweeping bar effect) */
+        .beat-pad.current-step {
+            filter: brightness(1.5);
+            border-color: white;
+        }
+
+        /* Specific Colors for Tracks */
+        .track-frog { --color: #48bb78; } /* Green */
+        .track-owl  { --color: #f6ad55; } /* Orange */
+        .track-bug  { --color: #63b3ed; } /* Blue */
+        .track-bird { --color: #f687b3; } /* Pink */
+
+        /* --- Controls --- */
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .btn-control {
+            padding: 10px 30px;
+            font-size: 1.5rem;
+            border-radius: 50px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.3);
+        }
+        .btn-control:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+
+        .btn-play { background-color: #48bb78; color: white; }
+        .btn-stop { background-color: #e53e3e; color: white; }
+        .btn-clear { background-color: #ed8936; color: white; font-size: 1.2rem; }
+
+        .tempo-slider {
+            width: 150px;
+            accent-color: #48bb78;
+        }
+
+        /* --- Visualizer Bars --- */
+        .visualizer {
+            display: flex;
+            gap: 5px;
+            height: 50px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+        .bar {
+            width: 15px;
+            height: 10px;
+            background-color: #48bb78;
+            border-radius: 5px;
+            transition: height 0.1s;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    
+    <div class="text-center mb-4">
+        <h1 class="text-4xl text-green-300 drop-shadow-md">🌲 Forest Beat Maker 🥁</h1>
+        <p class="text-green-100 opacity-80 mt-2">Click the squares to make the animals play!</p>
+    </div>
+
+    <div class="visualizer" id="visualizer">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+    </div>
+
+    <div class="sequencer-grid">
+        
+        <div class="track-label track-frog" id="label-0">🐸</div>
+        <div class="beat-pad track-frog" data-track="0" data-step="0"></div>
+        <div class="beat-pad track-frog" data-track="0" data-step="1"></div>
+        <div class="beat-pad track-frog" data-track="0" data-step="2"></div>
+        <div class="beat-pad track-frog" data-track="0" data-step="3"></div>
+        <div class="beat-pad track-frog" data-track="0" data-step="4"></div>
+        <div class="beat-pad track-frog" data-track="0" data-step="5"></div>
+        <div class="beat-pad track-frog" data-track="0" data-step="6"></div>
+        <div class="beat-pad track-frog" data-track="0" data-step="7"></div>
+
+        <div class="track-label track-owl" id="label-1">🦉</div>
+        <div class="beat-pad track-owl" data-track="1" data-step="0"></div>
+        <div class="beat-pad track-owl" data-track="1" data-step="1"></div>
+        <div class="beat-pad track-owl" data-track="1" data-step="2"></div>
+        <div class="beat-pad track-owl" data-track="1" data-step="3"></div>
+        <div class="beat-pad track-owl" data-track="1" data-step="4"></div>
+        <div class="beat-pad track-owl" data-track="1" data-step="5"></div>
+        <div class="beat-pad track-owl" data-track="1" data-step="6"></div>
+        <div class="beat-pad track-owl" data-track="1" data-step="7"></div>
+
+        <div class="track-label track-bug" id="label-2">🦗</div>
+        <div class="beat-pad track-bug" data-track="2" data-step="0"></div>
+        <div class="beat-pad track-bug" data-track="2" data-step="1"></div>
+        <div class="beat-pad track-bug" data-track="2" data-step="2"></div>
+        <div class="beat-pad track-bug" data-track="2" data-step="3"></div>
+        <div class="beat-pad track-bug" data-track="2" data-step="4"></div>
+        <div class="beat-pad track-bug" data-track="2" data-step="5"></div>
+        <div class="beat-pad track-bug" data-track="2" data-step="6"></div>
+        <div class="beat-pad track-bug" data-track="2" data-step="7"></div>
+
+        <div class="track-label track-bird" id="label-3">🐦</div>
+        <div class="beat-pad track-bird" data-track="3" data-step="0"></div>
+        <div class="beat-pad track-bird" data-track="3" data-step="1"></div>
+        <div class="beat-pad track-bird" data-track="3" data-step="2"></div>
+        <div class="beat-pad track-bird" data-track="3" data-step="3"></div>
+        <div class="beat-pad track-bird" data-track="3" data-step="4"></div>
+        <div class="beat-pad track-bird" data-track="3" data-step="5"></div>
+        <div class="beat-pad track-bird" data-track="3" data-step="6"></div>
+        <div class="beat-pad track-bird" data-track="3" data-step="7"></div>
+
+    </div>
+
+    <div class="controls">
+        <button class="btn-control btn-play" id="play-btn" onclick="togglePlay()">▶ Play</button>
+        <button class="btn-control btn-clear" onclick="clearGrid()">🗑 Clear</button>
+        
+        <div class="flex flex-col items-center ml-4">
+            <span class="text-sm">Speed</span>
+            <input type="range" min="100" max="400" value="250" class="tempo-slider" id="tempo" oninput="updateTempo()">
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- Audio Context Setup (Synthesizer) ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = new AudioContext();
+    
+    // --- Synthesizer Functions ---
+    
+    // 1. Kick Drum (Frog)
+    function playKick(time) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.frequency.setValueAtTime(150, time);
+        osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
+
+        gain.gain.setValueAtTime(1, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
+
+        osc.start(time);
+        osc.stop(time + 0.5);
+    }
+
+    // 2. Snare/Clap (Owl)
+    function playSnare(time) {
+        const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < noiseBuffer.length; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+        
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = noiseBuffer;
+        
+        const noiseFilter = audioCtx.createBiquadFilter();
+        noiseFilter.type = 'highpass';
+        noiseFilter.frequency.value = 1000;
+        
+        const gain = audioCtx.createGain();
+        
+        noise.connect(noiseFilter);
+        noiseFilter.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        gain.gain.setValueAtTime(0.5, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+        
+        noise.start(time);
+        noise.stop(time + 0.2);
+    }
+
+    // 3. Hi-Hat (Cricket)
+    function playHiHat(time) {
+        // High frequency triangle wave for metallic sound
+        const osc = audioCtx.createOscillator();
+        osc.type = 'triangle';
+        
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 5000;
+        
+        const gain = audioCtx.createGain();
+        
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.frequency.setValueAtTime(8000, time);
+        gain.gain.setValueAtTime(0.2, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+        
+        osc.start(time);
+        osc.stop(time + 0.1);
+    }
+
+    // 4. Melody (Bird) - Plays a random note from a pentatonic scale
+    function playMelody(time) {
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sine';
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        // Simple C Major Pentatonic notes: C5, D5, E5, G5, A5
+        const notes = [523.25, 587.33, 659.25, 783.99, 880.00];
+        const randomNote = notes[Math.floor(Math.random() * notes.length)];
+        
+        osc.frequency.setValueAtTime(randomNote, time);
+        
+        gain.gain.setValueAtTime(0.3, time);
+        gain.gain.linearRampToValueAtTime(0, time + 0.3);
+        
+        osc.start(time);
+        osc.stop(time + 0.3);
+    }
+
+    // --- Game Logic ---
+    
+    // Grid State: 4 tracks x 8 steps
+    let grid = [
+        [0,0,0,0,0,0,0,0], // Frog
+        [0,0,0,0,0,0,0,0], // Owl
+        [0,0,0,0,0,0,0,0], // Bug
+        [0,0,0,0,0,0,0,0]  // Bird
+    ];
+
+    let isPlaying = false;
+    let currentStep = 0;
+    let tempo = 250; // ms per step
+    let timerID = null;
+
+    // -- UI Handling --
+    
+    const pads = document.querySelectorAll('.beat-pad');
+    
+    pads.forEach(pad => {
+        pad.addEventListener('click', () => {
+            // Resume Audio Context on first click if needed
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const track = parseInt(pad.dataset.track);
+            const step = parseInt(pad.dataset.step);
+            
+            // Toggle State
+            if (grid[track][step] === 1) {
+                grid[track][step] = 0;
+                pad.classList.remove('active');
+            } else {
+                grid[track][step] = 1;
+                pad.classList.add('active');
+                
+                // Preview Sound
+                if(!isPlaying) playSoundForTrack(track);
+            }
+        });
+    });
+
+    function playSoundForTrack(track) {
+        const now = audioCtx.currentTime;
+        if(track === 0) playKick(now);
+        if(track === 1) playSnare(now);
+        if(track === 2) playHiHat(now);
+        if(track === 3) playMelody(now);
+        
+        // Visual bounce on label
+        const label = document.getElementById(`label-${track}`);
+        label.classList.add('playing');
+        setTimeout(() => label.classList.remove('playing'), 100);
+        
+        // Random visualizer movement
+        updateVisualizer();
+    }
+
+    // --- Sequencer Engine ---
+
+    function nextStep() {
+        // Remove highlight from previous step
+        const prevStepPads = document.querySelectorAll(`.beat-pad[data-step="${currentStep}"]`);
+        prevStepPads.forEach(p => p.classList.remove('current-step'));
+
+        // Advance step
+        currentStep = (currentStep + 1) % 8;
+
+        // Add highlight to current step
+        const currentStepPads = document.querySelectorAll(`.beat-pad[data-step="${currentStep}"]`);
+        currentStepPads.forEach(p => p.classList.add('current-step'));
+
+        // Play sounds
+        for (let track = 0; track < 4; track++) {
+            if (grid[track][currentStep] === 1) {
+                playSoundForTrack(track);
+            }
+        }
+    }
+
+    function togglePlay() {
+        const btn = document.getElementById('play-btn');
+        
+        if (isPlaying) {
+            isPlaying = false;
+            clearInterval(timerID);
+            btn.textContent = "▶ Play";
+            btn.classList.remove('btn-stop');
+            btn.classList.add('btn-play');
+            
+            // Clear highlights
+            document.querySelectorAll('.current-step').forEach(p => p.classList.remove('current-step'));
+            currentStep = -1; // Reset
+        } else {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            isPlaying = true;
+            btn.textContent = "⏹ Stop";
+            btn.classList.remove('btn-play');
+            btn.classList.add('btn-stop');
+            
+            // Start Loop
+            currentStep = -1; // Will become 0 on first tick
+            nextStep(); // Play immediately
+            timerID = setInterval(nextStep, tempo);
+        }
+    }
+
+    function updateTempo() {
+        const slider = document.getElementById('tempo');
+        // Slider value is period in ms. Lower = Faster.
+        // Invert visual logic: slider Right = Fast, Left = Slow.
+        // Slider HTML: min 100 (fast), max 400 (slow)
+        
+        tempo = slider.value;
+        
+        if (isPlaying) {
+            clearInterval(timerID);
+            timerID = setInterval(nextStep, tempo);
+        }
+    }
+
+    function clearGrid() {
+        grid = [
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0]
+        ];
+        
+        document.querySelectorAll('.beat-pad').forEach(pad => {
+            pad.classList.remove('active');
+        });
+        
+        if (isPlaying) togglePlay(); // Stop playing
+    }
+    
+    function updateVisualizer() {
+        const bars = document.querySelectorAll('.bar');
+        bars.forEach(bar => {
+            const h = Math.floor(Math.random() * 40) + 10;
+            bar.style.height = `${h}px`;
+        });
+    }
+
+    // Default: Set a basic pattern
+    // Kick on 0, 4
+    // pads[0].click(); pads[4].click(); 
+    // Snare on 2, 6
+    // pads[10].click(); pads[14].click();
+    
+    // Actually, let's keep it empty so they discover it!
+
+</script>
+
+</body>
+</html>
