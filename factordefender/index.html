@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prime Factor Defender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* --- General Styles --- */
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #0d1117; /* Deep space black */
+            color: #c9d1d9;
+            overflow: hidden;
+            user-select: none; /* Prevent highlighting text while playing */
+        }
+        
+        #game-area {
+            position: relative;
+            width: 100%;
+            height: 90vh;
+            max-width: 800px;
+            margin: 0 auto;
+            border: 3px solid #30363d;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(49, 132, 255, 0.2);
+            background: radial-gradient(circle at center top, rgba(17, 24, 39, 0.8) 0%, rgba(13, 17, 23, 1) 100%);
+            overflow: hidden;
+        }
+
+        /* --- Planet (Defense Target) --- */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 30px #63b3ed; }
+            50% { box-shadow: 0 0 60px #3182ce, 0 0 20px #fff; }
+            100% { box-shadow: 0 0 30px #63b3ed; }
+        }
+
+        #planet {
+            position: absolute;
+            bottom: -20px; /* Tucked slightly at bottom */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 140px; /* Bigger size */
+            height: 140px; 
+            background: radial-gradient(circle at 30% 30%, #4299e1, #2b6cb0, #1a202c);
+            border-radius: 50%;
+            border: 4px solid #90cdf4;
+            animation: pulse 3s infinite; /* Pulsating Glow */
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #planet span {
+            font-size: 4rem;
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+            margin-bottom: 20px; /* Center emoji visually */
+        }
+
+        /* --- Asteroid Animation --- */
+        @keyframes fall {
+            from { top: -10%; transform: rotate(0deg); opacity: 1; }
+            to { top: 80%; transform: rotate(360deg); opacity: 1; } 
+        }
+        
+        .asteroid {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle at 30% 30%, #d6bcfa, #9333ea, #553c9a);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 1.8rem;
+            font-weight: 900;
+            box-shadow: 0 0 20px rgba(147, 51, 234, 0.6);
+            border: 3px solid #a855f7;
+            animation: fall var(--fall-duration) linear forwards;
+            z-index: 20;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        /* --- Laser Projectile --- */
+        .projectile {
+            position: absolute;
+            width: 20px; /* Length of bolt */
+            height: 6px;  /* Thickness of bolt */
+            background-color: #34d399; /* Neon Green */
+            border-radius: 4px;
+            box-shadow: 0 0 15px #34d399, 0 0 5px #fff;
+            z-index: 50;
+            pointer-events: none;
+            /* Transition allows it to move smoothly when coordinates change */
+            transition: top 0.2s linear, left 0.2s linear; 
+        }
+
+        /* --- Explosion Effect --- */
+        @keyframes explode {
+            0% { opacity: 1; transform: scale(0.5); }
+            50% { opacity: 1; transform: scale(1.5); }
+            100% { opacity: 0; transform: scale(3); }
+        }
+
+        .explosion {
+            position: absolute;
+            background: radial-gradient(circle, #fef08a 0%, #f97316 40%, transparent 80%);
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            animation: explode 0.4s ease-out forwards;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* --- Laser Buttons (Prime Factors) --- */
+        .factor-btn {
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            font-weight: 900;
+            transition: all 0.1s;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5), 0 0 15px currentColor;
+            cursor: pointer;
+            border: 3px solid rgba(255,255,255,0.2);
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-shadow: 1px 1px 0 #000;
+        }
+        .factor-btn:hover { transform: translateY(-2px); filter: brightness(1.2); }
+        .factor-btn:active { transform: translateY(2px); box-shadow: 0 0 0; }
+
+        /* Custom Colors for Primes */
+        .prime-2 { background-color: #22c55e; color: #fff; } /* Green */
+        .prime-3 { background-color: #eab308; color: #fff; } /* Yellow */
+        .prime-5 { background-color: #3b82f6; color: #fff; } /* Blue */
+        .prime-7 { background-color: #ef4444; color: #fff; } /* Red */
+
+    </style>
+</head>
+<body class="p-4">
+
+<div class="max-w-4xl mx-auto mb-4">
+    <h1 class="text-3xl text-center text-blue-400 font-bold tracking-widest uppercase drop-shadow-md">Prime Factor Defender</h1>
+</div>
+
+<div id="game-area">
+    
+    <div id="asteroid-container"></div>
+    
+    <div id="planet" title="Defense Target">
+        <span>🌎</span>
+    </div>
+
+    <div class="absolute bottom-0 w-full p-4 bg-gray-900/90 border-t border-gray-700 flex justify-between items-center z-30 backdrop-blur-sm">
+        
+        <div class="flex flex-col items-start w-1/3">
+            <div class="text-xs text-gray-400 uppercase tracking-widest">Current Charge</div>
+            <div id="current-product" class="text-3xl font-bold text-amber-400 drop-shadow-lg">1</div>
+            <div class="text-xs text-gray-400 mt-1">Required: <span id="factors-needed" class="text-white font-mono text-sm"></span></div>
+        </div>
+
+        <div id="control-panel" class="flex gap-4 justify-center w-1/3">
+            </div>
+        
+        <div class="flex flex-col items-end w-1/3">
+            <div class="text-xs text-gray-400">SCORE: <span id="score" class="text-green-400 text-lg font-bold">0</span></div>
+            <div class="text-xs text-gray-400">LEVEL: <span id="level" class="text-blue-400 text-lg font-bold">1</span></div>
+            <button id="start-btn" class="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1 px-6 rounded shadow-[0_0_10px_#4f46e5] text-sm transition-colors" onclick="startGame()">Start Game</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Data ---
+    const LEVELS = [
+        { target: 12, factors: [2, 2, 3] },
+        { target: 20, factors: [2, 2, 5] },
+        { target: 30, factors: [2, 3, 5] },
+        { target: 49, factors: [7, 7] },
+        { target: 50, factors: [2, 5, 5] },
+        { target: 84, factors: [2, 2, 3, 7] },
+        { target: 100, factors: [2, 2, 5, 5] },
+        { target: 120, factors: [2, 2, 2, 3, 5] }, // Added harder levels
+        { target: 150, factors: [2, 3, 5, 5] }
+    ];
+    
+    const PRIME_FACTORS = [2, 3, 5, 7];
+
+    // --- DOM Elements ---
+    const gameArea = document.getElementById('game-area');
+    const asteroidContainer = document.getElementById('asteroid-container');
+    const controlPanel = document.getElementById('control-panel');
+    const startBtn = document.getElementById('start-btn');
+    const currentProductEl = document.getElementById('current-product');
+    const factorsNeededEl = document.getElementById('factors-needed');
+    const scoreEl = document.getElementById('score');
+    const levelEl = document.getElementById('level');
+    const planetEl = document.getElementById('planet');
+
+    // --- State ---
+    let currentLevelIndex = 0;
+    let score = 0;
+    let currentAsteroid = null;
+    let collisionTimer = null;
+    let isGameRunning = false;
+    let currentProduct = 1;
+    let requiredFactors = [];
+
+    // --- Audio ---
+    let audioCtx = null;
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function playSound(type) {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        if (type === 'laser') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        } else if (type === 'explosion') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+        } else if (type === 'hit') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        }
+    }
+
+    // --- Setup ---
+    function setupControlPanel() {
+        controlPanel.innerHTML = '';
+        PRIME_FACTORS.forEach(factor => {
+            const btn = document.createElement('button');
+            btn.textContent = factor;
+            btn.classList.add('factor-btn', `prime-${factor}`);
+            btn.onclick = () => handleFactorClick(factor);
+            controlPanel.appendChild(btn);
+        });
+    }
+
+    function updateFactorsNeededDisplay() {
+        // Use standard HTML 'times' symbol
+        factorsNeededEl.innerHTML = requiredFactors.join(' &times; ') || '<span class="text-green-400">LOCKED ON!</span>';
+    }
+    
+    function resetProduct() {
+        currentProduct = 1;
+        currentProductEl.textContent = currentProduct;
+    }
+    
+    // --- Projectile Logic (The Moving Laser) ---
+    function shootProjectile() {
+        if (!currentAsteroid) return;
+
+        // 1. Coordinates relative to Game Area
+        const planetRect = planetEl.getBoundingClientRect();
+        const asteroidRect = currentAsteroid.getBoundingClientRect();
+        const gameAreaRect = gameArea.getBoundingClientRect();
+
+        const startX = planetRect.left + planetRect.width / 2 - gameAreaRect.left;
+        const startY = planetRect.top + planetRect.height / 2 - gameAreaRect.top;
+        const endX = asteroidRect.left + asteroidRect.width / 2 - gameAreaRect.left;
+        const endY = asteroidRect.top + asteroidRect.height / 2 - gameAreaRect.top;
+
+        // 2. Create Projectile Element
+        const bolt = document.createElement('div');
+        bolt.classList.add('projectile');
+        
+        // 3. Initial Position (at Planet)
+        bolt.style.left = `${startX}px`;
+        bolt.style.top = `${startY}px`;
+
+        // 4. Rotation to face target
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        bolt.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+
+        gameArea.appendChild(bolt);
+
+        // 5. Force Reflow (Crucial for CSS transitions to work on newly created elements)
+        void bolt.offsetWidth; 
+
+        // 6. Set Final Position (at Asteroid) - CSS Transition handles the movement
+        bolt.style.left = `${endX}px`;
+        bolt.style.top = `${endY}px`;
+
+        // 7. Remove after flight time (matches CSS transition: 0.2s)
+        setTimeout(() => bolt.remove(), 200);
+    }
+
+    // --- Gameplay ---
+
+    function createAsteroid() {
+        if (currentAsteroid) currentAsteroid.remove();
+        
+        // Loop levels if exceeded
+        const levelIndexSafe = currentLevelIndex % LEVELS.length;
+        const levelData = LEVELS[levelIndexSafe];
+        
+        requiredFactors = [...levelData.factors]; 
+        
+        // Speed increases with level (clamped minimum 3s)
+        const duration = Math.max(3, 12 - currentLevelIndex * 0.8); 
+
+        currentAsteroid = document.createElement('div');
+        currentAsteroid.classList.add('asteroid');
+        currentAsteroid.style.setProperty('--fall-duration', `${duration}s`);
+        currentAsteroid.style.left = `${Math.random() * 60 + 20}%`; // Safe margin from edges
+        currentAsteroid.innerHTML = `<span>${levelData.target}</span>`;
+        
+        asteroidContainer.appendChild(currentAsteroid);
+        updateFactorsNeededDisplay();
+
+        if (collisionTimer) clearTimeout(collisionTimer);
+        // Collision slightly before animation ends for better visual sync
+        collisionTimer = setTimeout(handleCollision, duration * 1000 * 0.98); 
+    }
+
+    function handleFactorClick(factor) {
+        if (!isGameRunning || !currentAsteroid) return;
+
+        shootProjectile(); 
+        playSound('laser');
+
+        if (requiredFactors.includes(factor)) {
+            const index = requiredFactors.indexOf(factor);
+            requiredFactors.splice(index, 1); 
+
+            currentProduct *= factor;
+            currentProductEl.textContent = currentProduct;
+            updateFactorsNeededDisplay();
+
+            // Correct Math
+            if (requiredFactors.length === 0) {
+                // Wait 200ms for projectile to hit before exploding
+                setTimeout(handleSuccess, 200);
+            }
+        } else {
+            // Wrong Math
+            playSound('hit'); // Error sound
+            resetProduct();
+            // Reset required factors based on current level
+            const levelIndexSafe = currentLevelIndex % LEVELS.length;
+            requiredFactors = [...LEVELS[levelIndexSafe].factors];
+            updateFactorsNeededDisplay();
+            
+            // Visual penalty
+            gameArea.style.borderColor = '#ef4444';
+            setTimeout(() => gameArea.style.borderColor = '#30363d', 300);
+        }
+    }
+
+    function handleSuccess() {
+        if(!currentAsteroid) return;
+
+        clearTimeout(collisionTimer);
+        isGameRunning = false;
+        
+        const rect = currentAsteroid.getBoundingClientRect();
+        const areaRect = gameArea.getBoundingClientRect();
+        
+        // Explosion Effect
+        const exp = document.createElement('div');
+        exp.classList.add('explosion');
+        exp.style.left = `${rect.left + rect.width/2 - areaRect.left - 60}px`; // Center of 120px explosion
+        exp.style.top = `${rect.top + rect.height/2 - areaRect.top - 60}px`;
+        gameArea.appendChild(exp);
+        
+        playSound('explosion');
+        currentAsteroid.remove();
+        
+        score++;
+        scoreEl.textContent = score;
+        currentLevelIndex++;
+        levelEl.textContent = currentLevelIndex + 1;
+        
+        resetProduct();
+        
+        setTimeout(() => {
+            exp.remove();
+            isGameRunning = true;
+            createAsteroid();
+        }, 800);
+    }
+
+    function handleCollision() {
+        if (currentAsteroid) {
+            currentAsteroid.style.animationPlayState = 'paused';
+            endGame('LOSE');
+        }
+    }
+
+    function endGame(status) {
+        clearTimeout(collisionTimer);
+        isGameRunning = false;
+        startBtn.textContent = 'Restart';
+        startBtn.disabled = false;
+        
+        let message = `GAME OVER! The number breached the defenses.\nFinal Score: ${score}`;
+        playSound('hit');
+        
+        setTimeout(() => {
+            alert(message);
+            if (currentAsteroid) currentAsteroid.remove();
+            resetProduct();
+            requiredFactors = [];
+            updateFactorsNeededDisplay();
+        }, 100);
+    }
+
+    function startGame() {
+        startBtn.disabled = true;
+        startBtn.textContent = 'DEFENDING...';
+        currentLevelIndex = 0;
+        score = 0;
+        scoreEl.textContent = score;
+        levelEl.textContent = 1;
+        isGameRunning = true;
+        createAsteroid();
+    }
+
+    setupControlPanel();
+    factorsNeededEl.textContent = 'Ready?';
+    currentProductEl.textContent = 0;
+</script>
+
+</body>
+</html>
