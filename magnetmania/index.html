@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magnet Mania: Junkyard Hero</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka One', cursive; /* Fun, chunky font for kids */
+            background-color: #2d3748;
+            overflow: hidden;
+            touch-action: none; /* Prevent scrolling on mobile */
+            cursor: none; /* Hide default cursor, we use the magnet */
+        }
+
+        #game-area {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #4a5568 0%, #2d3748 100%);
+            overflow: hidden;
+        }
+
+        /* --- The Player's Magnet --- */
+        #magnet-cursor {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            pointer-events: none; /* Let clicks pass through */
+            z-index: 100;
+            filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.5));
+            transform: translate(-50%, -50%); /* Center on mouse */
+            transition: transform 0.1s;
+        }
+
+        .magnet-wave {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid rgba(59, 130, 246, 0.5); /* Blue electric wave */
+            border-radius: 50%;
+            width: 100%; height: 100%;
+            animation: ripple 1s infinite linear;
+            z-index: -1;
+        }
+
+        @keyframes ripple {
+            0% { width: 50px; height: 50px; opacity: 1; border-width: 4px; }
+            100% { width: 200px; height: 200px; opacity: 0; border-width: 0px; }
+        }
+
+        /* --- Items (Junk) --- */
+        .junk-item {
+            position: absolute;
+            font-size: 2.5rem;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            transition: transform 0.1s;
+            z-index: 10;
+        }
+
+        /* Animation for when non-magnetic items are hovered (Wiggle) */
+        @keyframes wiggle {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(-10deg); }
+            75% { transform: rotate(10deg); }
+            100% { transform: rotate(0deg); }
+        }
+        .wiggling {
+            animation: wiggle 0.3s ease-in-out;
+        }
+
+        /* --- Score & UI --- */
+        .ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 25px;
+            border-radius: 20px;
+            border: 4px solid #4299e1;
+            box-shadow: 0 8px 0 #2b6cb0;
+            z-index: 200;
+        }
+
+        /* --- Success Sparkles --- */
+        .sparkle {
+            position: absolute;
+            width: 10px; height: 10px;
+            background-color: #fbbf24;
+            border-radius: 50%;
+            animation: fly-up 0.6s ease-out forwards;
+            pointer-events: none;
+            z-index: 150;
+        }
+
+        @keyframes fly-up {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+        }
+        
+        #instruction-modal {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 300;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="game-area">
+    
+    <div id="magnet-cursor">
+        <div class="magnet-wave"></div>
+        <div class="text-6xl">🧲</div>
+    </div>
+
+    <div class="ui-panel">
+        <h1 class="text-2xl text-blue-600 mb-1">Magnet Mania</h1>
+        <div class="text-xl text-gray-700">Metal Collected: <span id="score" class="text-green-500 font-bold">0</span></div>
+        <div class="text-sm text-gray-500 mt-2">Level: <span id="level">1</span></div>
+    </div>
+
+</div>
+
+<div id="instruction-modal">
+    <div class="bg-white p-8 rounded-3xl text-center max-w-lg border-8 border-yellow-400 shadow-2xl">
+        <h1 class="text-4xl text-blue-500 mb-4">🧲 Magnet Hero</h1>
+        <p class="text-xl text-gray-700 mb-6">
+            Move your mouse to control the <b>Big Magnet</b>.
+            <br><br>
+            Collect all the <b>Metal</b> items (Bolts, Robots).
+            <br>
+            Ignore the <b>Plastic/Wood</b> items (Ducks, Blocks)!
+        </p>
+        <button onclick="startGame()" class="bg-green-500 hover:bg-green-600 text-white text-2xl py-3 px-8 rounded-full shadow-[0_6px_0_#15803d] active:shadow-none active:translate-y-2 transition-all">
+            Start Cleaning!
+        </button>
+    </div>
+</div>
+
+<script>
+    // --- Configuration ---
+    const ITEMS = [
+        // Magnetic Items (Metal)
+        { name: 'Bolt', icon: '🔩', type: 'magnetic' },
+        { name: 'Gear', icon: '⚙️', type: 'magnetic' },
+        { name: 'Paperclip', icon: '📎', type: 'magnetic' },
+        { name: 'Robot', icon: '🤖', type: 'magnetic' },
+        { name: 'Wrench', icon: '🔧', type: 'magnetic' },
+        { name: 'Chain', icon: '⛓️', type: 'magnetic' },
+        
+        // Non-Magnetic Items
+        { name: 'Duck', icon: '🦆', type: 'non-magnetic' },
+        { name: 'Leaf', icon: '🍃', type: 'non-magnetic' },
+        { name: 'Wood', icon: '🪵', type: 'non-magnetic' },
+        { name: 'Pizza', icon: '🍕', type: 'non-magnetic' },
+        { name: 'Balloon', icon: '🎈', type: 'non-magnetic' },
+        { name: 'Teddy', icon: '🧸', type: 'non-magnetic' }
+    ];
+
+    // --- State ---
+    const gameArea = document.getElementById('game-area');
+    const magnetEl = document.getElementById('magnet-cursor');
+    const scoreEl = document.getElementById('score');
+    const levelEl = document.getElementById('level');
+    const instructionModal = document.getElementById('instruction-modal');
+
+    let activeItems = []; // Stores objects with x, y, vx, vy, element, type
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    let score = 0;
+    let level = 1;
+    let isRunning = false;
+    let animationFrame;
+
+    // --- Audio System ---
+    let audioCtx = null;
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function playSound(type) {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        if (type === 'pop') {
+            // High pitched 'ping' for collection
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'buzz') {
+            // Low buzz for magnetic attraction
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'thud') {
+            // Low thud for non-magnetic
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        }
+    }
+
+    // --- Game Logic ---
+
+    // Track mouse position
+    document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        
+        // Move magnet visually
+        magnetEl.style.left = mouseX + 'px';
+        magnetEl.style.top = mouseY + 'px';
+    });
+
+    function spawnItems(count) {
+        // Clear old items
+        activeItems.forEach(item => item.element.remove());
+        activeItems = [];
+
+        for(let i=0; i<count; i++) {
+            // Pick random item data
+            const template = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+            
+            const el = document.createElement('div');
+            el.classList.add('junk-item');
+            el.textContent = template.icon;
+            
+            // Random Position (padding from edges)
+            let x = Math.random() * (window.innerWidth - 100) + 50;
+            let y = Math.random() * (window.innerHeight - 100) + 50;
+            
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            
+            gameArea.appendChild(el);
+            
+            activeItems.push({
+                x: x, y: y,
+                vx: 0, vy: 0,
+                type: template.type,
+                element: el,
+                isCollected: false
+            });
+        }
+    }
+
+    function createSparkles(x, y) {
+        for(let i=0; i<8; i++) {
+            const sparkle = document.createElement('div');
+            sparkle.classList.add('sparkle');
+            sparkle.style.left = x + 'px';
+            sparkle.style.top = y + 'px';
+            
+            // Random direction
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 50 + Math.random() * 50;
+            const dx = Math.cos(angle) * distance;
+            const dy = Math.sin(angle) * distance;
+            
+            sparkle.style.setProperty('--dx', `${dx}px`);
+            sparkle.style.setProperty('--dy', `${dy}px`);
+            
+            gameArea.appendChild(sparkle);
+            setTimeout(() => sparkle.remove(), 600);
+        }
+    }
+
+    function gameLoop() {
+        if (!isRunning) return;
+
+        let metalsRemaining = 0;
+
+        activeItems.forEach(item => {
+            if (item.isCollected) return;
+
+            if (item.type === 'magnetic') {
+                metalsRemaining++;
+                
+                // --- PHYSICS: Magnetic Attraction ---
+                const dx = mouseX - item.x;
+                const dy = mouseY - item.y;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                const magnetRange = 250; // Range of effect
+                const catchRange = 40;   // Distance to collect
+
+                if (distance < catchRange) {
+                    // Item Collected!
+                    item.isCollected = true;
+                    item.element.style.transform = "scale(0) rotate(360deg)";
+                    item.element.style.opacity = "0";
+                    playSound('pop');
+                    createSparkles(item.x, item.y);
+                    score += 10;
+                    scoreEl.textContent = score;
+                    
+                    // Remove from DOM after animation
+                    setTimeout(() => { item.element.remove(); }, 200);
+
+                } else if (distance < magnetRange) {
+                    // Calculate Attraction Force (Stronger when closer)
+                    // F = 1 / distance
+                    const force = (magnetRange - distance) / magnetRange; 
+                    const angle = Math.atan2(dy, dx);
+                    
+                    // Apply velocity
+                    const speed = force * 15; // Speed multiplier
+                    item.vx += Math.cos(angle) * speed * 0.1;
+                    item.vy += Math.sin(angle) * speed * 0.1;
+                    
+                    // Friction (to stop them floating away forever)
+                    item.vx *= 0.9;
+                    item.vy *= 0.9;
+
+                    // Play faint buzz if very close and moving fast
+                    if (Math.random() < 0.05 && force > 0.5) playSound('buzz');
+                } else {
+                    // Friction stops them eventually if out of range
+                    item.vx *= 0.9;
+                    item.vy *= 0.9;
+                }
+
+                // Apply position
+                item.x += item.vx;
+                item.y += item.vy;
+                item.element.style.left = (item.x - 30) + 'px'; // -30 to center
+                item.element.style.top = (item.y - 30) + 'px';
+
+            } else {
+                // --- PHYSICS: Non-Magnetic (Static but Reactive) ---
+                const dx = mouseX - item.x;
+                const dy = mouseY - item.y;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                
+                // If magnet touches non-magnetic item, it wiggles but doesn't move
+                if (distance < 50) {
+                    if (!item.element.classList.contains('wiggling')) {
+                        item.element.classList.add('wiggling');
+                        playSound('thud');
+                        setTimeout(() => item.element.classList.remove('wiggling'), 300);
+                    }
+                }
+            }
+        });
+
+        // Check Win Condition for Level
+        if (metalsRemaining === 0) {
+            levelUp();
+        }
+
+        animationFrame = requestAnimationFrame(gameLoop);
+    }
+
+    function levelUp() {
+        level++;
+        levelEl.textContent = level;
+        playSound('pop'); // Success sound
+        
+        // Increase difficulty by adding more items
+        spawnItems(5 + (level * 3));
+    }
+
+    function startGame() {
+        instructionModal.style.display = 'none';
+        isRunning = true;
+        score = 0;
+        level = 1;
+        scoreEl.textContent = score;
+        levelEl.textContent = level;
+        spawnItems(8); // Initial items
+        gameLoop();
+    }
+
+</script>
+
+</body>
+</html>
