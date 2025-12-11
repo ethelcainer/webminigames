@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Periodic Puzzle: Neon Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #000;
+            color: #e2e8f0;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0; padding: 0;
+        }
+
+        /* --- Main Background Layer --- */
+        #game-wrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at 50% 30%, #111827 0%, #000 90%);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- 3D Grid Floor --- */
+        .retro-grid {
+            position: absolute;
+            bottom: -30%;
+            left: -50%;
+            width: 200%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(34, 211, 238, 0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34, 211, 238, 0.3) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform: perspective(500px) rotateX(60deg);
+            animation: grid-move 20s linear infinite;
+            mask-image: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 60%);
+            z-index: 0;
+            pointer-events: none;
+        }
+        @keyframes grid-move { from { transform: perspective(500px) rotateX(60deg) translateY(0); } to { transform: perspective(500px) rotateX(60deg) translateY(40px); } }
+
+        /* --- CRT Scanline Overlay --- */
+        .crt-overlay {
+            position: absolute; inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 900;
+            opacity: 0.6;
+        }
+
+        /* --- HUD Decorations (Corners) --- */
+        .hud-corner {
+            position: absolute; width: 100px; height: 100px;
+            border: 2px solid #22d3ee; opacity: 0.5; pointer-events: none; z-index: 10;
+        }
+        .hud-tl { top: 20px; left: 20px; border-right: none; border-bottom: none; border-radius: 10px 0 0 0; }
+        .hud-tr { top: 20px; right: 20px; border-left: none; border-bottom: none; border-radius: 0 10px 0 0; }
+        .hud-bl { bottom: 20px; left: 20px; border-right: none; border-top: none; border-radius: 0 0 0 10px; }
+        .hud-br { bottom: 20px; right: 20px; border-left: none; border-top: none; border-radius: 0 0 10px 0; }
+
+        /* --- Central Game Console (Keeps things grouped) --- */
+        #game-console {
+            position: relative;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            /* Scaling logic for responsiveness */
+            transform-origin: center;
+            transition: transform 0.3s ease;
+        }
+
+        /* --- Header --- */
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #22d3ee;
+        }
+        
+        .stats-panel {
+            display: flex; gap: 30px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid #334155;
+            padding: 10px 40px;
+            border-radius: 0 0 20px 20px;
+            box-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
+            font-family: 'Roboto Mono', monospace;
+        }
+
+        /* --- Periodic Table Grid --- */
+        #table-frame {
+            padding: 20px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(34, 211, 238, 0.4);
+            border-radius: 20px;
+            box-shadow: 0 0 60px rgba(34, 211, 238, 0.15), inset 0 0 30px rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            margin-bottom: 20px;
+        }
+
+        #table-container {
+            display: grid;
+            grid-template-columns: repeat(18, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 6px;
+            width: 960px; /* Fixed reference width */
+            aspect-ratio: 18 / 3;
+        }
+
+        .element-slot {
+            background: rgba(2, 6, 23, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 6px;
+            display: flex; justify-content: center; align-items: center;
+            font-family: 'Roboto Mono', monospace;
+            color: rgba(148, 163, 184, 0.3);
+            font-size: 1rem;
+            position: relative;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+        .element-slot:empty::before { content: attr(data-num); }
+        .element-slot.drag-over {
+            background: rgba(34, 211, 238, 0.2);
+            border-color: #22d3ee;
+            box-shadow: 0 0 15px #22d3ee;
+        }
+
+        /* --- Tiles --- */
+        .element-tile {
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid; border-radius: 6px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: grab; z-index: 50;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.6);
+            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .cat-alkali { border-color: #ef4444; color: #ef4444; text-shadow: 0 0 5px #ef4444; }
+        .cat-alkaline { border-color: #f97316; color: #f97316; text-shadow: 0 0 5px #f97316; }
+        .cat-nonmetal { border-color: #22d3ee; color: #22d3ee; text-shadow: 0 0 5px #22d3ee; }
+        .cat-noble { border-color: #a855f7; color: #a855f7; text-shadow: 0 0 5px #a855f7; }
+        .cat-metalloid { border-color: #22c55e; color: #22c55e; text-shadow: 0 0 5px #22c55e; }
+        .cat-halogen { border-color: #eab308; color: #eab308; text-shadow: 0 0 5px #eab308; }
+
+        .symbol { font-size: 1.6rem; font-weight: 900; }
+        .atomic-num { font-size: 0.6rem; position: absolute; top: 2px; left: 4px; opacity: 0.8; }
+        .name { font-size: 0.45rem; font-family: 'Roboto Mono'; margin-top: 2px; opacity: 0.9; text-transform: uppercase; }
+
+        /* --- Fact Monitor --- */
+        #fact-monitor {
+            width: 900px; max-width: 90vw;
+            height: 50px;
+            background: rgba(2, 6, 23, 0.95);
+            border: 1px solid #22d3ee;
+            border-left: 5px solid #22d3ee;
+            box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Roboto Mono', monospace; color: #22d3ee;
+            text-transform: uppercase; letter-spacing: 1px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        /* Scanline for Monitor */
+        #fact-monitor::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(rgba(34, 211, 238, 0), rgba(34, 211, 238, 0.1) 50%, rgba(34, 211, 238, 0));
+            background-size: 100% 3px;
+            pointer-events: none;
+        }
+
+        /* --- Conveyor Belt --- */
+        #conveyor-belt {
+            height: 110px; width: 960px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 2px solid #334155; border-radius: 12px;
+            display: flex; align-items: center; gap: 15px; padding: 0 25px;
+            overflow-x: auto; touch-action: pan-x;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            scrollbar-width: none;
+        }
+        #conveyor-belt::-webkit-scrollbar { display: none; }
+        .tile-wrapper { flex: 0 0 70px; height: 70px; position: relative; z-index: 5; }
+
+        /* --- Ghost Tile (Mobile Drag) --- */
+        .ghost-tile {
+            position: fixed; width: 70px; height: 70px; pointer-events: none; z-index: 9999;
+            opacity: 0.9; transform: translate(-50%, -50%) scale(1.2);
+            box-shadow: 0 0 25px rgba(255,255,255,0.3);
+        }
+
+        /* --- Pause Button --- */
+        #pause-btn {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(15, 23, 42, 0.8); border: 2px solid #22d3ee; color: #22d3ee;
+            width: 45px; height: 45px; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.2rem; cursor: pointer; z-index: 100;
+            transition: all 0.2s;
+        }
+        #pause-btn:hover { background: #22d3ee; color: #000; box-shadow: 0 0 15px #22d3ee; }
+
+        /* --- Overlays --- */
+        .modal {
+            position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 200; display: none;
+        }
+        
+        .sparkle {
+            position: absolute; width: 8px; height: 8px; background: #fff; border-radius: 50%;
+            pointer-events: none; z-index: 150; animation: pop 0.6s ease-out forwards;
+        }
+        @keyframes pop { 100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } }
+
+        /* --- Responsive Scaling --- */
+        /* Scales the entire game-console based on viewport width */
+        @media (max-width: 1024px) { #game-console { transform: scale(0.9); } }
+        @media (max-width: 900px) { #game-console { transform: scale(0.75); } }
+        @media (max-width: 700px) { #game-console { transform: scale(0.6); } }
+        @media (max-width: 500px) { #game-console { transform: scale(0.42); } }
+        @media (max-width: 380px) { #game-console { transform: scale(0.35); } }
+
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div class="retro-grid"></div>
+    <div class="crt-overlay"></div>
+    <div class="hud-corner hud-tl"></div>
+    <div class="hud-corner hud-tr"></div>
+    <div class="hud-corner hud-bl"></div>
+    <div class="hud-corner hud-br"></div>
+    
+    <button id="pause-btn" onclick="togglePause()">❚❚</button>
+
+    <div id="game-console">
+        
+        <header>
+            <h1 class="text-6xl font-bold text-cyan-400 glow-text mb-2 tracking-[0.2em]">NEON LAB</h1>
+            <div class="stats-panel">
+                <div class="text-green-400">STATUS: <span id="score">0</span>/18</div>
+                <div class="text-purple-400">SYSTEM TIME: <span id="timer">00:00</span></div>
+            </div>
+        </header>
+
+        <div id="table-frame">
+            <div id="table-container"></div>
+        </div>
+
+        <div id="fact-monitor">
+            <span id="typewriter-text">INITIALIZING... TAP ELEMENT FOR DATA.</span>
+        </div>
+
+        <div id="conveyor-belt"></div>
+
+    </div>
+</div>
+
+<div id="pause-modal" class="modal">
+    <h2 class="text-6xl text-cyan-400 font-bold mb-6 glow-text">SUSPENDED</h2>
+    <button onclick="togglePause()" class="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black px-10 py-3 rounded-full font-bold text-xl transition-all">RESUME</button>
+</div>
+
+<div id="win-modal" class="modal">
+    <h2 class="text-7xl text-yellow-400 font-bold mb-6 glow-text">COMPLETE</h2>
+    <p class="text-2xl text-gray-300 mb-10 font-mono">System Integrity Restored.</p>
+    <button onclick="location.reload()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xl py-4 px-12 rounded-full shadow-[0_0_30px_#0891b2] transition-all">REBOOT</button>
+</div>
+
+<script>
+    const ELEMENTS = [
+        { num: 1, sym: "H", name: "Hydrogen", cat: "cat-nonmetal", row: 1, col: 1, fact: "Most abundant element in the universe!" },
+        { num: 2, sym: "He", name: "Helium", cat: "cat-noble", row: 1, col: 18, fact: "Lighter than air, used in balloons." },
+        { num: 3, sym: "Li", name: "Lithium", cat: "cat-alkali", row: 2, col: 1, fact: "Used in rechargeable batteries." },
+        { num: 4, sym: "Be", name: "Beryllium", cat: "cat-alkaline", row: 2, col: 2, fact: "Used in gears for spacecraft." },
+        { num: 5, sym: "B", name: "Boron", cat: "cat-metalloid", row: 2, col: 13, fact: "Used in green flares and slime!" },
+        { num: 6, sym: "C", name: "Carbon", cat: "cat-nonmetal", row: 2, col: 14, fact: "Diamonds are made of pure Carbon." },
+        { num: 7, sym: "N", name: "Nitrogen", cat: "cat-nonmetal", row: 2, col: 15, fact: "78% of the air we breathe." },
+        { num: 8, sym: "O", name: "Oxygen", cat: "cat-nonmetal", row: 2, col: 16, fact: "Essential for human breathing." },
+        { num: 9, sym: "F", name: "Fluorine", cat: "cat-halogen", row: 2, col: 17, fact: "Added to toothpaste for teeth." },
+        { num: 10, sym: "Ne", name: "Neon", cat: "cat-noble", row: 2, col: 18, fact: "Glows red-orange in signs." },
+        { num: 11, sym: "Na", name: "Sodium", cat: "cat-alkali", row: 3, col: 1, fact: "Part of table salt (NaCl)." },
+        { num: 12, sym: "Mg", name: "Magnesium", cat: "cat-alkaline", row: 3, col: 2, fact: "Burns with a bright white light." },
+        { num: 13, sym: "Al", name: "Aluminium", cat: "cat-metalloid", row: 3, col: 13, fact: "Used to make soda cans." },
+        { num: 14, sym: "Si", name: "Silicon", cat: "cat-metalloid", row: 3, col: 14, fact: "Major component in computer chips." },
+        { num: 15, sym: "P", name: "Phosphorus", cat: "cat-nonmetal", row: 3, col: 15, fact: "Used in match heads." },
+        { num: 16, sym: "S", name: "Sulfur", cat: "cat-nonmetal", row: 3, col: 16, fact: "Smells like rotten eggs." },
+        { num: 17, sym: "Cl", name: "Chlorine", cat: "cat-halogen", row: 3, col: 17, fact: "Keeps swimming pools clean." },
+        { num: 18, sym: "Ar", name: "Argon", cat: "cat-noble", row: 3, col: 18, fact: "Used inside light bulbs." },
+    ];
+
+    let score = 0, secondsElapsed = 0, timerInterval, isPaused = false;
+    let activeGhost = null, draggingSource = null, typingTimeout;
+    const factText = document.getElementById('typewriter-text');
+
+    // Audio
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        if (type === 'snap') {
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'error') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        } else if (type === 'blip') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.02, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.05);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+        } else if (type === 'win') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.6);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+        }
+    }
+
+    function typeFact(text) {
+        clearTimeout(typingTimeout); factText.textContent = ""; let i = 0;
+        function typeChar() {
+            if (i < text.length) {
+                factText.textContent += text.charAt(i); i++;
+                if (i % 3 === 0) playSound('blip');
+                typingTimeout = setTimeout(typeChar, 20);
+            } else { factText.textContent += "_"; }
+        }
+        typeChar();
+    }
+
+    function init() {
+        // Grid
+        const tableContainer = document.getElementById('table-container');
+        for (let r = 1; r <= 3; r++) {
+            for (let c = 1; c <= 18; c++) {
+                const element = ELEMENTS.find(e => e.row === r && e.col === c);
+                const cell = document.createElement('div');
+                if (element) {
+                    cell.className = 'element-slot'; cell.dataset.num = element.num;
+                    cell.addEventListener('dragover', handleDragOver);
+                    cell.addEventListener('dragleave', handleDragLeave);
+                    cell.addEventListener('drop', handleDrop);
+                } else { cell.style.visibility = 'hidden'; }
+                tableContainer.appendChild(cell);
+            }
+        }
+        // Conveyor
+        const belt = document.getElementById('conveyor-belt');
+        const shuffled = [...ELEMENTS].sort(() => Math.random() - 0.5);
+        shuffled.forEach(el => {
+            const wrapper = document.createElement('div'); wrapper.className = 'tile-wrapper';
+            const tile = createTile(el);
+            wrapper.appendChild(tile); belt.appendChild(wrapper);
+        });
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    function createTile(el) {
+        const tile = document.createElement('div');
+        tile.className = `element-tile ${el.cat}`;
+        tile.draggable = true;
+        tile.dataset.num = el.num; tile.dataset.sym = el.sym; tile.dataset.fact = el.fact; tile.dataset.name = el.name;
+        tile.innerHTML = `<span class="atomic-num">${el.num}</span><span class="symbol">${el.sym}</span><span class="name">${el.name}</span>`;
+        tile.addEventListener('dragstart', handleDragStart);
+        tile.addEventListener('dragend', handleDragEnd);
+        tile.addEventListener('touchstart', handleTouchStart, {passive: false});
+        tile.addEventListener('touchmove', handleTouchMove, {passive: false});
+        tile.addEventListener('touchend', handleTouchEnd);
+        tile.addEventListener('click', () => typeFact(`[${el.sym}] ${el.name}: ${el.fact}`));
+        return tile;
+    }
+
+    // Drag (Desktop)
+    function handleDragStart(e) {
+        if(isPaused) { e.preventDefault(); return; }
+        draggingSource = e.target; e.dataTransfer.setData('text/plain', e.target.dataset.num);
+        setTimeout(() => e.target.style.opacity = '0.5', 0);
+    }
+    function handleDragEnd(e) { e.target.style.opacity = '1'; draggingSource = null; }
+    function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+    function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+    function handleDrop(e) {
+        if(isPaused) return; e.preventDefault();
+        const slot = e.currentTarget; slot.classList.remove('drag-over');
+        if (e.dataTransfer.getData('text/plain') === slot.dataset.num) placeTile(slot, draggingSource);
+        else { playSound('error'); slot.style.borderColor='#ef4444'; setTimeout(()=>slot.style.borderColor='',300); }
+    }
+
+    // Drag (Mobile)
+    function handleTouchStart(e) {
+        if(isPaused) return;
+        const target = e.currentTarget; draggingSource = target;
+        activeGhost = target.cloneNode(true); activeGhost.classList.add('ghost-tile');
+        const t = e.touches[0]; activeGhost.style.left = t.clientX+'px'; activeGhost.style.top = t.clientY+'px';
+        document.body.appendChild(activeGhost); target.style.opacity = '0.5';
+        typeFact(`[${target.dataset.sym}] ${target.dataset.name}: ${target.dataset.fact}`);
+    }
+    function handleTouchMove(e) {
+        if(!activeGhost || isPaused) return; e.preventDefault();
+        const t = e.touches[0]; activeGhost.style.left = t.clientX+'px'; activeGhost.style.top = t.clientY+'px';
+        const el = document.elementFromPoint(t.clientX, t.clientY);
+        const slot = el ? el.closest('.element-slot') : null;
+        document.querySelectorAll('.drag-over').forEach(d => d.classList.remove('drag-over'));
+        if (slot && !slot.hasChildNodes()) slot.classList.add('drag-over');
+    }
+    function handleTouchEnd(e) {
+        if(!activeGhost) return;
+        const t = e.changedTouches[0];
+        const el = document.elementFromPoint(t.clientX, t.clientY);
+        const slot = el ? el.closest('.element-slot') : null;
+        activeGhost.remove(); activeGhost = null; draggingSource.style.opacity = '1';
+        document.querySelectorAll('.drag-over').forEach(d => d.classList.remove('drag-over'));
+        if (slot && slot.dataset.num === draggingSource.dataset.num) placeTile(slot, draggingSource);
+        else if (slot) { playSound('error'); slot.style.borderColor='#ef4444'; setTimeout(()=>slot.style.borderColor='',300); }
+    }
+
+    function placeTile(slot, tile) {
+        playSound('snap'); tile.parentElement.remove();
+        tile.style.opacity='1'; tile.style.transform='scale(1)'; tile.draggable=false;
+        tile.removeEventListener('touchstart', handleTouchStart);
+        slot.innerHTML=''; slot.appendChild(tile); slot.style.border='none'; slot.style.background='transparent';
+        
+        // Particles
+        const rect = slot.getBoundingClientRect();
+        for(let i=0; i<8; i++){
+            const s = document.createElement('div'); s.className='sparkle';
+            s.style.left=(rect.left+rect.width/2)+'px'; s.style.top=(rect.top+rect.height/2)+'px';
+            const a = Math.random()*Math.PI*2, d = 30;
+            s.style.setProperty('--tx', Math.cos(a)*d+'px'); s.style.setProperty('--ty', Math.sin(a)*d+'px');
+            document.body.appendChild(s); setTimeout(()=>s.remove(),600);
+        }
+
+        score++; document.getElementById('score').textContent=score;
+        if(score === ELEMENTS.length) { clearInterval(timerInterval); playSound('win'); document.getElementById('win-modal').style.display='flex'; }
+    }
+
+    function togglePause() {
+        isPaused = !isPaused;
+        const modal = document.getElementById('pause-modal');
+        const btn = document.getElementById('pause-btn');
+        if(isPaused) { clearInterval(timerInterval); modal.style.display='flex'; btn.innerHTML='▶'; }
+        else { timerInterval = setInterval(updateTimer, 1000); modal.style.display='none'; btn.innerHTML='❚❚'; }
+    }
+
+    function updateTimer() {
+        secondsElapsed++;
+        const m = Math.floor(secondsElapsed/60).toString().padStart(2,'0');
+        const s = (secondsElapsed%60).toString().padStart(2,'0');
+        document.getElementById('timer').textContent=`${m}:${s}`;
+    }
+
+    init();
+</script>
+</body>
+</html>
