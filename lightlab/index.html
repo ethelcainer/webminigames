@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Bounce: Final Polish 💎</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #1a1b2e; /* Deep Indigo Background */
+            --neon-blue: #00f3ff;
+            --neon-purple: #bc13fe;
+            --neon-green: #00ff9d;
+            --glass: rgba(30, 30, 50, 0.9);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: 'Rajdhani', sans-serif;
+            color: white;
+            touch-action: none;
+        }
+
+        canvas { position: absolute; top: 0; left: 0; }
+        #bg-canvas { z-index: -1; }
+        #game-canvas { z-index: 1; }
+
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 10;
+        }
+
+        .hud-top {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: auto;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+        }
+
+        .level-badge {
+            font-family: 'Orbitron';
+            color: var(--neon-blue);
+            border: 2px solid var(--neon-blue);
+            padding: 8px 20px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: 2px;
+            background: rgba(0, 243, 255, 0.1);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+        }
+
+        .mute-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid white;
+            color: white;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .mute-btn:hover { background: white; color: black; }
+
+        .hud-bottom {
+            pointer-events: auto;
+            padding-bottom: 40px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .control-panel {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-top: 2px solid var(--neon-purple);
+            padding: 15px 30px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+            opacity: 0.5;
+            transform: translateY(20px) scale(0.9);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .control-panel.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            box-shadow: 0 0 30px rgba(188, 19, 254, 0.4);
+        }
+
+        .control-label {
+            display: block; text-align: center; color: var(--neon-purple);
+            font-family: 'Orbitron'; font-size: 0.8rem; margin-bottom: 8px;
+            letter-spacing: 1px; text-transform: uppercase;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none; width: 250px; height: 10px;
+            background: rgba(255,255,255,0.1); border-radius: 5px; outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 24px; height: 24px;
+            border-radius: 50%; background: var(--neon-purple); cursor: pointer;
+            box-shadow: 0 0 15px var(--neon-purple); border: 2px solid white;
+        }
+
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s; z-index: 100;
+        }
+        .modal-overlay.visible { opacity: 1; pointer-events: auto; }
+
+        .holo-card {
+            width: 85%; max-width: 500px;
+            background: rgba(20, 20, 35, 0.95);
+            border: 2px solid var(--neon-blue); padding: 40px; text-align: center;
+            box-shadow: 0 0 60px rgba(0, 243, 255, 0.2);
+            clip-path: polygon(10% 0, 100% 0, 100% 90%, 90% 100%, 0 100%, 0 10%);
+        }
+
+        h2 { font-family: 'Orbitron'; font-size: 2.2rem; margin: 0 0 10px 0; }
+        p { color: #ccc; line-height: 1.6; margin-bottom: 30px; }
+
+        .btn-action {
+            background: var(--neon-blue); color: #000; border: none; padding: 15px 40px;
+            font-family: 'Orbitron'; font-weight: 700; font-size: 1rem; cursor: pointer;
+            clip-path: polygon(10% 0, 100% 0, 100% 100%, 0% 100%); transition: all 0.2s;
+        }
+        .btn-action:hover { transform: scale(1.05); box-shadow: 0 0 20px var(--neon-blue); }
+
+        /* Add a subtle scanline texture over the whole screen */
+        body::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0;
+            bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none; /* Let clicks pass through */
+        }
+
+        /* Add a subtle vignette (dark corners) */
+        #ui-layer {
+            background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.6) 100%);
+        }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+    <canvas id="game-canvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="level-badge" id="level-indicator">LEVEL 1</div>
+            <button class="mute-btn" id="mute-btn" onclick="AudioSys.toggleMute()">🔊</button>
+        </div>
+
+        <div class="hud-bottom">
+            <div class="control-panel" id="controls">
+                <span class="control-label">ROTATE SYSTEM</span>
+                <input type="range" id="angle-slider" min="0" max="360" value="0">
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-intro" class="modal-overlay visible">
+        <div class="holo-card" style="border-color: var(--neon-blue)">
+            <h2 style="color:var(--neon-blue)">NEON LABS</h2>
+            <p><strong>Mission:</strong> Route the laser to the Reactor Core.<br>
+            Drag mirrors. Rotate to reflect.</p>
+            <button class="btn-action" onclick="startGame()">INITIALIZE</button>
+        </div>
+    </div>
+
+    <div id="modal-level" class="modal-overlay">
+        <div class="holo-card" style="border-color: var(--neon-green)">
+            <h2 style="color:var(--neon-green)">CORE STABLE</h2>
+            <p>Reactor efficiency at 100%. <br>Proceeding to next sector.</p>
+            <button class="btn-action" style="background:var(--neon-green)" onclick="nextLevel()">NEXT SECTOR >></button>
+        </div>
+    </div>
+
+    <div id="modal-end" class="modal-overlay">
+        <div class="holo-card" style="border-color: var(--neon-purple)">
+            <h2 style="color:var(--neon-purple)">COMPLETE</h2>
+            <p>All sectors stabilized. System Nominal.</p>
+            <button class="btn-action" style="background:var(--neon-purple)" onclick="location.reload()">RESET SYSTEM</button>
+        </div>
+    </div>
+
+<script>
+/** * AUDIO SYSTEM 5.0 (Restored Music, Polished SFX) 
+ */
+const AudioSys = {
+    ctx: new (window.AudioContext || window.webkitAudioContext)(),
+    masterGain: null,
+    isMuted: false,
+    chargeOsc: null,
+    chargeGain: null,
+    bgmInterval: null,
+    
+    init() {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.connect(this.ctx.destination);
+        this.masterGain.gain.value = 0.3;
+        
+        // Setup Charge Synth (Triangle wave for smoother sound)
+        this.chargeOsc = this.ctx.createOscillator();
+        this.chargeOsc.type = 'triangle';
+        this.chargeOsc.frequency.value = 150;
+        this.chargeOsc.start();
+        
+        this.chargeGain = this.ctx.createGain();
+        this.chargeGain.gain.value = 0; 
+        
+        this.chargeOsc.connect(this.chargeGain).connect(this.masterGain);
+    },
+
+    toggleMute() {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        this.isMuted = !this.isMuted;
+        this.masterGain.gain.value = this.isMuted ? 0 : 0.3;
+        document.getElementById('mute-btn').innerText = this.isMuted ? '🔇' : '🔊';
+    },
+
+    // Charge Sound (Rising Pitch)
+    updateChargeSound(isCharging, progressPct) {
+        if(!this.chargeGain) return;
+        const now = this.ctx.currentTime;
+        if(isCharging) {
+            this.chargeGain.gain.setTargetAtTime(0.08, now, 0.1);
+            const targetFreq = 150 + (progressPct * 800);
+            this.chargeOsc.frequency.setTargetAtTime(targetFreq, now, 0.05);
+        } else {
+            this.chargeGain.gain.setTargetAtTime(0, now, 0.1);
+            this.chargeOsc.frequency.setTargetAtTime(150, now, 0.2);
+        }
+    },
+
+    // General Tone Generator
+    playTone(type, fStart, fEnd, dur, vol=1) {
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type; 
+        o.frequency.setValueAtTime(fStart, this.ctx.currentTime);
+        if(fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, this.ctx.currentTime + dur);
+        g.gain.setValueAtTime(vol, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+        o.connect(g); g.connect(this.masterGain);
+        o.start(); o.stop(this.ctx.currentTime + dur);
+    },
+
+    click() { this.playTone('sine', 800, 0.1, 0.05, 0.1); },
+    
+    // NEW: Smooth, pleasant win sound (Major Chord)
+    win() { 
+        this.chargeGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+        // Play a C Major chord swell
+        const now = this.ctx.currentTime;
+        [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
+            setTimeout(() => {
+                const o = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                o.type = 'sine';
+                o.frequency.value = freq;
+                g.gain.setValueAtTime(0, now + i*0.05);
+                g.gain.linearRampToValueAtTime(0.1, now + i*0.05 + 0.1);
+                g.gain.exponentialRampToValueAtTime(0.001, now + i*0.05 + 1.5);
+                o.connect(g); g.connect(this.masterGain);
+                o.start(); o.stop(now + i*0.05 + 1.5);
+            }, i * 50);
+        });
+    },
+
+    // NEW: Ambient Music restored
+    startMusic() {
+        if(this.bgmInterval) return;
+        const scale = [196, 220, 261, 293, 329, 392]; // Soft pentatonic
+        this.bgmInterval = setInterval(() => {
+            if(!this.isMuted && Math.random() > 0.6) {
+                const freq = scale[Math.floor(Math.random() * scale.length)];
+                this.playTone('sine', freq, freq, 2.0, 0.02); // Very soft background
+            }
+        }, 1500);
+    }
+};
+
+/** GAME ENGINE */
+const c = document.getElementById('game-canvas');
+const ctx = c.getContext('2d');
+const bgC = document.getElementById('bg-canvas');
+const bgCtx = bgC.getContext('2d');
+
+let W, H, tick = 0;
+let gameState = 'PAUSED'; 
+let currentLevelIdx = 0;
+
+// Corrected Levels to avoid UI overlap
+const LEVELS = [
+    {
+        name: "Training",
+        emitter: {x: 0.1, y: 0.5},
+        target: {x: 0.8, y: 0.5},
+        mirrors: [{x: 0.45, y: 0.5, angle: 45}],
+        obstacles: []
+    },
+    {
+        name: "The Wall",
+        emitter: {x: 0.1, y: 0.2},
+        target: {x: 0.9, y: 0.2},
+        mirrors: [
+            {x: 0.2, y: 0.5, angle: 135},
+            {x: 0.5, y: 0.8, angle: 90},
+            {x: 0.8, y: 0.5, angle: 45}
+        ],
+        obstacles: [{p1: {x: 0.5, y: 0}, p2: {x: 0.5, y: 0.6}}]
+    },
+    {
+        name: "Zig Zag",
+        emitter: {x: 0.1, y: 0.8},
+        target: {x: 0.9, y: 0.2},
+        mirrors: [
+            {x: 0.3, y: 0.8, angle: 135},
+            {x: 0.3, y: 0.2, angle: 45},
+            {x: 0.7, y: 0.8, angle: 135},
+            {x: 0.7, y: 0.2, angle: 45}
+        ],
+        obstacles: [{p1: {x: 0.5, y: 0.2}, p2: {x: 0.5, y: 0.8}}]
+    },
+    { 
+        name: "Deadly Box",
+        emitter: {x: 0.5, y: 0.9},
+        target: {x: 0.5, y: 0.1},
+        mirrors: [
+            {x: 0.15, y: 0.7, angle: 45},
+            {x: 0.15, y: 0.25, angle: 135}, // Moved up slightly
+            {x: 0.85, y: 0.7, angle: 135},
+            {x: 0.85, y: 0.25, angle: 45} // Moved up slightly
+        ],
+        obstacles: [
+            {p1: {x: 0.3, y: 0.5}, p2: {x: 0.7, y: 0.5}},
+            {p1: {x: 0.4, y: 0.4}, p2: {x: 0.6, y: 0.6}}
+        ]
+    },
+    { 
+        name: "Quantum Maze",
+        emitter: {x: 0.05, y: 0.1},
+        target: {x: 0.95, y: 0.9},
+        mirrors: [
+            {x: 0.2, y: 0.15, angle: 30},
+            {x: 0.8, y: 0.15, angle: 150},
+            {x: 0.5, y: 0.5, angle: 90},
+            {x: 0.2, y: 0.8, angle: -30}, // Moved from 0.85 to 0.8 (away from UI)
+            {x: 0.8, y: 0.8, angle: -150} // Moved from 0.85 to 0.8
+        ],
+        obstacles: [
+            {p1: {x: 0.3, y: 0}, p2: {x: 0.3, y: 0.4}},
+            {p1: {x: 0.7, y: 0.6}, p2: {x: 0.7, y: 1}},
+            {p1: {x: 0.4, y: 0.5}, p2: {x: 0.6, y: 0.5}}
+        ]
+    }
+];
+
+const GAME = {
+    mirrors: [], walls: [], obstacles: [],
+    emitter: {pos:{x:0,y:0}, dir:{x:1,y:0}},
+    target: {pos:{x:0,y:0}, r: 35, charge: 0},
+    laserPath: [], particles: [], shockwaves: [],
+    selection: null
+};
+
+// --- Core ---
+function resize() {
+    W = c.width = bgC.width = window.innerWidth;
+    H = c.height = bgC.height = window.innerHeight;
+    if(gameState !== 'PAUSED') loadLevel(currentLevelIdx);
+}
+window.addEventListener('resize', resize);
+
+function loadLevel(idx) {
+    if(idx >= LEVELS.length) {
+        document.getElementById('modal-end').classList.add('visible');
+        return;
+    }
+    const data = LEVELS[idx];
+    document.getElementById('level-indicator').innerText = `${idx+1}/5: ${data.name}`;
+    
+    // Scale coords
+    GAME.mirrors = data.mirrors.map(m => ({
+        pos: {x: m.x*W, y: m.y*H},
+        w: 90, h: 10, angle: m.angle, color: '#bc13fe'
+    }));
+    GAME.obstacles = data.obstacles.map(o => ({
+        p1: {x: o.p1.x*W, y: o.p1.y*H},
+        p2: {x: o.p2.x*W, y: o.p2.y*H},
+        type: 'obstacle'
+    }));
+    GAME.walls = [
+        {p1:{x:0,y:0}, p2:{x:W,y:0}}, {p1:{x:0,y:H}, p2:{x:W,y:H}},
+        {p1:{x:0,y:0}, p2:{x:0,y:H}}, {p1:{x:W,y:0}, p2:{x:W,y:H}},
+        ...GAME.obstacles
+    ];
+    GAME.emitter.pos = {x: data.emitter.x*W, y: data.emitter.y*H};
+    GAME.target.pos = {x: data.target.x*W, y: data.target.y*H};
+    GAME.target.charge = 0;
+    GAME.particles = []; GAME.shockwaves = []; GAME.selection = null;
+    document.getElementById('controls').classList.remove('active');
+}
+
+function startGame() {
+    AudioSys.init(); 
+    AudioSys.startMusic(); // Start Background Music
+    document.getElementById('modal-intro').classList.remove('visible');
+    gameState = 'PLAYING';
+    loadLevel(0);
+}
+
+function nextLevel() {
+    document.getElementById('modal-level').classList.remove('visible');
+    currentLevelIdx++;
+    gameState = 'PLAYING';
+    loadLevel(currentLevelIdx);
+}
+
+// --- Brightened Background ---
+function drawBg() {
+    bgCtx.fillStyle = '#1a1b2e'; 
+    bgCtx.fillRect(0,0,W,H);
+    // Grid
+    const off = (tick * 0.5) % 60;
+    bgCtx.strokeStyle = 'rgba(0, 243, 255, 0.1)'; bgCtx.lineWidth = 1;
+    bgCtx.beginPath();
+    for(let i = off; i < W; i += 60){ bgCtx.moveTo(i,0); bgCtx.lineTo(i,H); }
+    for(let i = 0; i < H; i += 60){ bgCtx.moveTo(0,i); bgCtx.lineTo(W,i); }
+    bgCtx.stroke();
+}
+
+// --- Physics ---
+function getIntersection(A, B, C, D) {
+    const top = (D.x-C.x)*(A.y-C.y) - (D.y-C.y)*(A.x-C.x);
+    const bot = (D.y-C.y)*(B.x-A.x) - (D.x-C.x)*(B.y-A.y);
+    if(bot === 0) return null;
+    const t = top/bot;
+    const u = ((B.x-A.x)*(A.y-C.y) - (B.y-A.y)*(A.x-C.x))/bot;
+    if(t>0 && t<=1 && u>0 && u<=1) return { x: A.x + t*(B.x-A.x), y: A.y + t*(B.y-A.y) };
+    return null;
+}
+function dist(p1, p2) { return Math.hypot(p1.x-p2.x, p1.y-p2.y); }
+
+function update() {
+    if(gameState !== 'PLAYING') return;
+
+    let ray = { start: GAME.emitter.pos, dir: GAME.emitter.dir };
+    let path = [ray.start];
+    let hitTarget = false;
+
+    for(let b=0; b<20; b++) {
+        let closest = { d: Infinity, pt: null, type: null, norm: null };
+        let rayEnd = { x: ray.start.x + ray.dir.x*3000, y: ray.start.y + ray.dir.y*3000 };
+
+        GAME.mirrors.forEach(m => {
+            const rad = m.angle * Math.PI/180;
+            const dx = Math.cos(rad)*(m.w/2), dy = Math.sin(rad)*(m.w/2);
+            const p1 = {x: m.pos.x-dx, y: m.pos.y-dy}, p2 = {x: m.pos.x+dx, y: m.pos.y+dy};
+            const hit = getIntersection(ray.start, rayEnd, p1, p2);
+            if(hit) {
+                const d = dist(ray.start, hit);
+                if(d < closest.d && d > 1) {
+                    let nx = -(p2.y-p1.y), ny = (p2.x-p1.x);
+                    const l = Math.hypot(nx, ny);
+                    closest = { d: d, pt: hit, type: 'mirror', norm: {x:nx/l, y:ny/l} };
+                }
+            }
+        });
+
+        GAME.walls.forEach(w => {
+            const hit = getIntersection(ray.start, rayEnd, w.p1, w.p2);
+            if(hit) {
+                const d = dist(ray.start, hit);
+                if(d < closest.d && d > 1) closest = { d: d, pt: hit, type: w.type || 'wall' };
+            }
+        });
+
+        if(closest.pt) {
+            path.push(closest.pt);
+            const A = ray.start, B = closest.pt, P = GAME.target.pos;
+            const l2 = (A.x-B.x)**2 + (A.y-B.y)**2;
+            let t = ((P.x-A.x)*(B.x-A.x) + (P.y-A.y)*(B.y-A.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            const proj = { x: A.x + t*(B.x-A.x), y: A.y + t*(B.y-A.y) };
+            if(dist(P, proj) < GAME.target.r) hitTarget = true;
+            // ... inside if(closest.pt) ...
+
+            // Add Impact Sparks (Visual Only) - REDUCED FREQUENCY
+            if (tick % 12 === 0) { // Changed from 3 to 12 for subtlety
+                const color = closest.type === 'mirror' ? '#bc13fe' : '#fff';
+                spawnParticle(closest.pt.x, closest.pt.y, color);
+            }
+
+            if(closest.type === 'mirror') {
+                const dot = ray.dir.x*closest.norm.x + ray.dir.y*closest.norm.y;
+                ray.dir = { x: ray.dir.x - 2*dot*closest.norm.x, y: ray.dir.y - 2*dot*closest.norm.y };
+                ray.start = closest.pt;
+                // Subtle ray hit effect
+                if(Math.random()>0.9) spawnParticle(closest.pt.x, closest.pt.y, '#00f3ff');
+            } else break;
+        } else {
+            path.push(rayEnd); break;
+        }
+    }
+    GAME.laserPath = path;
+
+    AudioSys.updateChargeSound(hitTarget, GAME.target.charge/100);
+    
+    if(hitTarget) {
+        GAME.target.charge += 1.5;
+        if(tick%4===0) spawnParticle(GAME.target.pos.x, GAME.target.pos.y, '#00ff9d');
+    } else {
+        GAME.target.charge = Math.max(0, GAME.target.charge - 3);
+    }
+
+    if(GAME.target.charge >= 100) triggerWin();
+}
+
+// FIX: Circular Explosion Math
+function spawnParticle(x, y, c) {
+    // Polar coordinates for natural scattering
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 6 + 2; 
+    
+    GAME.particles.push({
+        x, y, c, 
+        vx: Math.cos(angle) * speed, 
+        vy: Math.sin(angle) * speed, 
+        life: 1
+    });
+}
+
+function triggerWin() {
+    gameState = 'TRANSITION';
+    AudioSys.win();
+    // Massive Explosion (Circular)
+    for(let i=0; i<300; i++) spawnParticle(GAME.target.pos.x, GAME.target.pos.y, i%2?'#00ff9d':'#fff');
+    GAME.shockwaves.push({x: GAME.target.pos.x, y: GAME.target.pos.y, r: 10, alpha: 1});
+    setTimeout(() => { document.getElementById('modal-level').classList.add('visible'); }, 1500);
+}
+
+// --- Draw ---
+function draw() {
+    ctx.clearRect(0,0,W,H);
+    tick++;
+    update();
+    drawBg();
+
+    // Create 50 background dust particles
+    const bgParticles = Array.from({length: 50}, () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: Math.random() * 2,
+        speed: Math.random() * 0.5 + 0.1
+    }));
+
+    // 1. Target (Heartbeat)
+    const T = GAME.target;
+    const chargePct = Math.min(T.charge/100, 1);
+    const pulse = 1 + Math.sin(tick * 0.15) * 0.15; 
+    
+    ctx.save();
+    ctx.translate(T.pos.x, T.pos.y);
+    ctx.scale(pulse, pulse);
+    
+    ctx.shadowBlur = 30 + chargePct*50;
+    ctx.shadowColor = '#00ff9d';
+    ctx.fillStyle = `rgba(0, 255, 157, ${0.3 + chargePct})`;
+    ctx.beginPath(); ctx.arc(0, 0, T.r, 0, Math.PI*2); ctx.fill();
+    
+    ctx.beginPath();
+    ctx.arc(0, 0, T.r, -Math.PI/2, (-Math.PI/2) + (Math.PI*2*chargePct));
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.restore();
+
+    // 2. Obstacles
+    ctx.shadowBlur = 10; ctx.shadowColor = '#ff0055'; ctx.strokeStyle = '#ff0055';
+    GAME.obstacles.forEach(o => {
+        ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(o.p1.x, o.p1.y); ctx.lineTo(o.p2.x, o.p2.y); ctx.stroke();
+    });
+
+    // 3. Mirrors
+    GAME.mirrors.forEach(m => {
+        ctx.save();
+        ctx.translate(m.pos.x, m.pos.y);
+        ctx.rotate(m.angle * Math.PI/180);
+        
+        if(GAME.selection === m) {
+            ctx.shadowBlur = 30; ctx.shadowColor = '#bc13fe'; ctx.strokeStyle = '#fff';
+        } else {
+            ctx.shadowBlur = 15; ctx.shadowColor = m.color; ctx.strokeStyle = m.color;
+        }
+        
+        ctx.lineWidth = 3;
+        ctx.strokeRect(-m.w/2, -m.h/2, m.w, m.h);
+        ctx.fillStyle = 'rgba(188, 19, 254, 0.2)'; ctx.fillRect(-m.w/2, -m.h/2, m.w, m.h);
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+    });
+
+    // 4. Laser (High Energy Upgrade)
+    if(GAME.laserPath.length > 1 && gameState !== 'PAUSED') {
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+        // Layer 1: The Outer Glow (Wide, blurry, transparent)
+        ctx.shadowBlur = 30; 
+        ctx.shadowColor = '#00f3ff';
+        ctx.strokeStyle = 'rgba(0, 243, 255, 0.3)'; 
+        ctx.lineWidth = 8 + Math.sin(tick * 0.5) * 2; // Pulsing width
+        ctx.beginPath();
+        ctx.moveTo(GAME.laserPath[0].x, GAME.laserPath[0].y);
+        for(let i=1; i<GAME.laserPath.length; i++) ctx.lineTo(GAME.laserPath[i].x, GAME.laserPath[i].y);
+        ctx.stroke();
+
+        // Layer 2: The Inner Beam (Solid color)
+        ctx.shadowBlur = 10;
+        ctx.strokeStyle = '#00f3ff'; 
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Layer 3: The "Hot" Core (White, jittery electricity feel)
+        ctx.shadowBlur = 0; 
+        ctx.strokeStyle = '#fff'; 
+        // Random jitter makes it feel like raw energy
+        ctx.lineWidth = 1 + Math.random() * 2; 
+        ctx.stroke();
+    }
+
+    // 5. Emitter
+    ctx.shadowBlur = 20; ctx.shadowColor = '#00f3ff'; ctx.fillStyle = '#00f3ff';
+    ctx.beginPath(); ctx.arc(GAME.emitter.pos.x, GAME.emitter.pos.y, 8, 0, Math.PI*2); ctx.fill();
+
+    // 6. FX
+    GAME.particles.forEach((p,i) => {
+        p.x+=p.vx; p.y+=p.vy; p.life-=0.02;
+        if(p.life<=0) GAME.particles.splice(i,1);
+        ctx.globalAlpha = p.life; ctx.fillStyle = p.c;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+    });
+    
+    GAME.shockwaves.forEach((s, i) => {
+        s.r += 10; s.alpha -= 0.03;
+        if(s.alpha <= 0) GAME.shockwaves.splice(i, 1);
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${s.alpha})`; ctx.lineWidth = 4; ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
+    requestAnimationFrame(draw);
+}
+
+// --- Input (With larger hitbox) ---
+const getPos = (e) => {
+    const r = c.getBoundingClientRect();
+    const x = e.touches?e.touches[0].clientX:e.clientX;
+    const y = e.touches?e.touches[0].clientY:e.clientY;
+    return {x:x-r.left, y:y-r.top};
+}
+
+let drag = {active:false, offset:{x:0,y:0}};
+
+const handleStart = (p) => {
+    if(gameState !== 'PLAYING') return;
+    // Increased hit radius to 70 for easier grabbing
+    const clicked = GAME.mirrors.find(m => dist(p, m.pos) < 70); 
+    if(clicked) {
+        drag = {active:true, target:clicked, offset:{x:p.x-clicked.pos.x, y:p.y-clicked.pos.y}};
+        GAME.selection = clicked;
+        document.getElementById('angle-slider').value = clicked.angle;
+        document.getElementById('controls').classList.add('active');
+        AudioSys.click();
+    } else {
+        GAME.selection = null;
+        document.getElementById('controls').classList.remove('active');
+    }
+};
+
+c.addEventListener('mousedown', e => handleStart(getPos(e)));
+c.addEventListener('touchstart', e => handleStart(getPos(e)), {passive:false});
+
+const handleMove = (p) => {
+    if(drag.active) {
+        drag.target.pos.x = p.x - drag.offset.x;
+        drag.target.pos.y = p.y - drag.offset.y;
+    }
+};
+
+c.addEventListener('mousemove', e => { e.preventDefault(); handleMove(getPos(e)); });
+c.addEventListener('touchmove', e => { e.preventDefault(); handleMove(getPos(e)); }, {passive:false});
+
+const handleEnd = () => drag.active = false;
+window.addEventListener('mouseup', handleEnd);
+window.addEventListener('touchend', handleEnd);
+
+document.getElementById('angle-slider').addEventListener('input', e => {
+    if(GAME.selection) GAME.selection.angle = parseInt(e.target.value);
+});
+
+resize(); draw();
+</script>
+</body>
+</html>

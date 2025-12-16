@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cosmic Golf: Final Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #000;
+            color: #fff;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            margin: 0; padding: 0;
+        }
+
+        #game-container {
+            width: 100vw; height: 100vh;
+            position: relative;
+            background: radial-gradient(circle at center, #020617 0%, #000 100%);
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* --- UI --- */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            z-index: 10;
+        }
+
+        .hud-box {
+            background: rgba(15, 23, 42, 0.9);
+            border: 2px solid #38bdf8;
+            padding: 8px 20px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            min-width: 100px; text-align: center;
+        }
+
+        /* --- Menus --- */
+        .modal {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 100; pointer-events: auto;
+            transition: opacity 0.5s;
+        }
+
+        .dialog-box {
+            background: rgba(17, 24, 39, 0.95);
+            border: 1px solid #38bdf8;
+            padding: 30px;
+            border-radius: 4px;
+            max-width: 500px;
+            width: 90%;
+            position: relative;
+            box-shadow: 0 0 50px rgba(56, 189, 248, 0.2);
+        }
+        /* Corners */
+        .dialog-box::before { content: ''; position: absolute; top: -2px; left: -2px; width: 20px; height: 20px; border-top: 4px solid #38bdf8; border-left: 4px solid #38bdf8; }
+        .dialog-box::after { content: ''; position: absolute; bottom: -2px; right: -2px; width: 20px; height: 20px; border-bottom: 4px solid #38bdf8; border-right: 4px solid #38bdf8; }
+
+        .btn-cosmic {
+            margin-top: 25px;
+            background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%);
+            border: none; color: white;
+            padding: 15px 50px; font-size: 1.2rem;
+            border-radius: 2px;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.5);
+            transition: transform 0.1s, box-shadow 0.2s;
+            text-shadow: 0 2px 0 rgba(0,0,0,0.3);
+            width: 100%; cursor: pointer;
+        }
+        .btn-cosmic:active { transform: scale(0.98); }
+        .btn-cosmic:hover { box-shadow: 0 0 50px rgba(56, 189, 248, 0.8); }
+
+        .anim-hint { animation: fade-pulse 2s infinite; }
+        @keyframes fade-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+        .typewriter {
+            border-right: 2px solid #38bdf8;
+            animation: blink 0.75s step-end infinite;
+        }
+        @keyframes blink { 0%, 100% { border-color: transparent } 50% { border-color: #38bdf8 } }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="flex justify-between w-full items-start">
+            <div class="hud-box">
+                <div class="text-xs text-gray-400">SECTOR</div>
+                <div class="text-2xl text-cyan-300" id="level-display">1</div>
+            </div>
+            
+            <button class="hud-box hover:bg-sky-900 active:scale-95 text-gray-300 hover:text-white transition-colors" onclick="resetShip()">
+                ↺ RESET
+            </button>
+        </div>
+        
+        <div id="tutor-banner" class="text-center text-cyan-400 text-lg anim-hint pointer-events-none mb-10" style="text-shadow: 0 0 10px cyan;">
+            DRAG BACK TO AIM
+        </div>
+    </div>
+
+    <div id="start-modal" class="modal">
+        <h1 class="text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-b from-cyan-300 to-blue-600 mb-6 drop-shadow-2xl text-center">COSMIC<br>GOLF</h1>
+        <div class="bg-gray-900/80 border border-gray-700 p-8 rounded-2xl text-center max-w-sm backdrop-blur-xl shadow-2xl">
+            <p class="text-gray-300 mb-6 text-lg leading-relaxed">
+                Pilot the probe into the <span class="text-purple-400 font-bold">Wormhole</span>.
+            </p>
+            <div class="text-sm text-cyan-200 border-t border-gray-700 pt-4 font-mono">
+                MISSION: CLEAR 10 SECTORS
+            </div>
+        </div>
+        <button class="btn-cosmic" style="max-width: 200px" onclick="showBriefing(0)">BOOT SYSTEM</button>
+    </div>
+
+    <div id="dialog-modal" class="modal" style="display: none;">
+        <div class="dialog-box">
+            <div class="text-xs text-cyan-500 font-bold mb-2 tracking-widest">INCOMING TRANSMISSION...</div>
+            <h2 class="text-3xl text-white font-bold mb-4" id="dialog-title">SECTOR 1</h2>
+            <p class="text-gray-300 text-lg leading-relaxed font-mono min-h-[80px]" id="dialog-text"></p>
+            <button class="btn-cosmic" onclick="startLevel()">ENGAGE DRIVE</button>
+        </div>
+    </div>
+
+    <div id="win-modal" class="modal" style="display: none;">
+        <h2 class="text-6xl text-green-400 font-bold mb-2 text-center drop-shadow-[0_0_25px_rgba(74,222,128,0.5)]">ORBIT<br>STABLE</h2>
+        <p class="text-gray-300 mb-8 font-mono tracking-widest">CALCULATING NEXT JUMP...</p>
+    </div>
+
+    <div id="complete-modal" class="modal" style="display: none;">
+        <h1 class="text-6xl text-yellow-400 font-bold mb-4 text-center drop-shadow-[0_0_25px_rgba(250,204,21,0.5)]">GALAXY<br>CONQUERED</h1>
+        <div class="bg-gray-900/80 border border-yellow-600 p-8 rounded-2xl text-center max-w-sm backdrop-blur-xl shadow-2xl">
+            <p class="text-white mb-2 text-xl">Mission Successful!</p>
+            <p class="text-gray-400 text-sm">All sectors stabilized.</p>
+        </div>
+        <button class="btn-cosmic" style="max-width: 250px" onclick="location.reload()">REPLAY GALAXY</button>
+    </div>
+
+</div>
+
+<script>
+    // --- Audio ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+
+        if (type === 'charge') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(600, now + 0.15);
+            gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
+            osc.start(now); osc.stop(now + 0.15);
+        } else if (type === 'shoot') {
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+            gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0, now + 0.5);
+            osc.start(now); osc.stop(now + 0.5);
+        } else if (type === 'win') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(400, now); osc.frequency.linearRampToValueAtTime(1200, now + 0.3);
+            gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now + 0.6);
+            osc.start(now); osc.stop(now + 0.6);
+        } else if (type === 'crash') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(80, now); osc.frequency.exponentialRampToValueAtTime(10, now + 0.4);
+            gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0, now + 0.4);
+            osc.start(now); osc.stop(now + 0.4);
+        } else if (type === 'warp') {
+            const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < noiseBuffer.length; i++) output[i] = Math.random() * 2 - 1;
+            const noise = audioCtx.createBufferSource(); noise.buffer = noiseBuffer;
+            const noiseFilter = audioCtx.createBiquadFilter(); noiseFilter.type = 'lowpass';
+            noiseFilter.frequency.setValueAtTime(100, now); noiseFilter.frequency.linearRampToValueAtTime(3000, now + 1.5);
+            noise.connect(noiseFilter); noiseFilter.connect(gain); gain.connect(audioCtx.destination);
+            gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+            noise.start(now);
+        } else if (type === 'type') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(800, now);
+            gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+            osc.start(now); osc.stop(now + 0.05);
+        }
+    }
+
+    // --- Physics & Config ---
+    const G = 0.45; 
+    const LEVELS = [
+        { text: "Welcome, Pilot. Aim for the wormhole. Drag backwards to launch.", start: {x: 0.15, y: 0.5}, target: {x: 0.85, y: 0.5}, planets: [] }, 
+        { text: "Sensors detect a Solar Mass. Gravity will curve your path. Aim higher.", start: {x: 0.15, y: 0.5}, target: {x: 0.85, y: 0.5}, planets: [{x: 0.5, y: 0.5, r: 45, m: 400, c: '#fcd34d'}] }, 
+        { text: "Binary Star System ahead. Use the gravity well between them.", start: {x: 0.5, y: 0.85}, target: {x: 0.5, y: 0.15}, planets: [{x: 0.35, y: 0.5, r: 35, m: 300, c: '#f87171'}, {x: 0.65, y: 0.5, r: 35, m: 300, c: '#f87171'}] }, 
+        { text: "Caution: Super-Massive Giant detected. Its pull is incredibly strong.", start: {x: 0.2, y: 0.8}, target: {x: 0.8, y: 0.2}, planets: [{x: 0.5, y: 0.5, r: 65, m: 800, c: '#a78bfa'}] }, 
+        { text: "The Gate is guarded. Thread the needle, Pilot.", start: {x: 0.1, y: 0.5}, target: {x: 0.9, y: 0.5}, planets: [{x: 0.5, y: 0.25, r: 30, m: 200, c: '#34d399'}, {x: 0.5, y: 0.75, r: 30, m: 200, c: '#34d399'}] },
+        { text: "Slingshot maneuver required. Use the planet's gravity to boost speed.", start: {x: 0.2, y: 0.4}, target: {x: 0.8, y: 0.6}, planets: [{x: 0.3, y: 0.6, r: 50, m: 500, c: '#f97316'}] },
+        { text: "Asteroid Field. Navigation systems offline. Good luck.", start: {x: 0.1, y: 0.5}, target: {x: 0.9, y: 0.5}, planets: [ {x: 0.3, y: 0.3, r: 20, m: 100, c: '#94a3b8'}, {x: 0.3, y: 0.7, r: 20, m: 100, c: '#94a3b8'}, {x: 0.5, y: 0.5, r: 20, m: 100, c: '#94a3b8'}, {x: 0.7, y: 0.3, r: 20, m: 100, c: '#94a3b8'}, {x: 0.7, y: 0.7, r: 20, m: 100, c: '#94a3b8'} ]},
+        { text: "The Hook shot. You'll need extreme curvature here.", start: {x: 0.1, y: 0.8}, target: {x: 0.1, y: 0.2}, planets: [{x: 0.5, y: 0.5, r: 55, m: 700, c: '#ef4444'}] },
+        { text: "Trinary System. Chaos math required.", start: {x: 0.5, y: 0.9}, target: {x: 0.5, y: 0.1}, planets: [ {x: 0.2, y: 0.4, r: 40, m: 350, c: '#60a5fa'}, {x: 0.8, y: 0.4, r: 40, m: 350, c: '#60a5fa'}, {x: 0.5, y: 0.6, r: 30, m: 250, c: '#f472b6'} ]},
+        { text: "Final Sector. Event Horizon approach. Do not miss.", start: {x: 0.15, y: 0.5}, target: {x: 0.85, y: 0.5}, planets: [{x: 0.5, y: 0.5, r: 80, m: 1200, c: '#1e293b'}] }
+    ];
+
+    // --- State ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let currentLevel = 0;
+    let ship = { x: 0, y: 0, vx: 0, vy: 0, r: 12, active: false, crashed: false, win: false, trail: [] };
+    let target = { x: 0, y: 0, r: 35, angle: 0 };
+    let planets = [];
+    let particles = [];
+    let stars = [];
+    
+    // States
+    let warpActive = false;
+    let systemAlpha = 1;
+    let systemScale = 1;
+    
+    // Drag
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let dragCurrent = { x: 0, y: 0 };
+    let typeInterval;
+
+    // --- Core Functions ---
+    function resize() {
+        // Use logical window dimensions to set up canvas
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // No ctx.scale here to simplify coordinate logic
+        initStars();
+        if(!ship.active && !warpActive) loadLevel(currentLevel);
+    }
+    window.addEventListener('resize', resize);
+
+    function initStars() {
+        stars = [];
+        for(let i=0; i<150; i++) {
+            stars.push({
+                x: Math.random() * window.innerWidth, 
+                y: Math.random() * window.innerHeight,
+                z: Math.random() * 2 + 0.5,
+                size: Math.random() * 1.5,
+                opacity: Math.random()
+            });
+        }
+    }
+
+    function loadLevel(idx) {
+        if(idx >= LEVELS.length) {
+            document.getElementById('complete-modal').style.display = 'flex';
+            return;
+        }
+        
+        const data = LEVELS[idx];
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        ship.x = data.start.x * w; 
+        ship.y = data.start.y * h;
+        ship.vx = 0; ship.vy = 0;
+        ship.active = false; ship.crashed = false; ship.win = false;
+        ship.r = 12; // Radius
+        ship.trail = [];
+
+        target.x = data.target.x * w; 
+        target.y = data.target.y * h;
+
+        planets = data.planets.map(p => ({
+            x: p.x * w, y: p.y * h, radius: p.r, mass: p.m, color: p.c,
+            angle: Math.random() * Math.PI,
+            details: Array.from({length: 3}, () => ({ r: Math.random()*p.r*0.4, offX: (Math.random()-0.5)*p.r, offY: (Math.random()-0.5)*p.r }))
+        }));
+        
+        document.getElementById('level-display').innerText = idx + 1;
+        document.getElementById('tutor-banner').style.opacity = '1';
+        
+        systemAlpha = 0;
+        systemScale = 3;
+    }
+
+    // --- Dialog ---
+    function showBriefing(idx) {
+        if(idx >= LEVELS.length) {
+            document.getElementById('complete-modal').style.display = 'flex';
+            return;
+        }
+        currentLevel = idx;
+        loadLevel(idx); // Setup background
+        
+        document.getElementById('start-modal').style.display = 'none';
+        document.getElementById('win-modal').style.display = 'none';
+        const modal = document.getElementById('dialog-modal');
+        const title = document.getElementById('dialog-title');
+        const text = document.getElementById('dialog-text');
+        
+        modal.style.display = 'flex';
+        title.innerText = `SECTOR ${idx + 1}`;
+        text.innerText = '';
+        text.classList.add('typewriter');
+        
+        let i = 0;
+        const msg = LEVELS[idx].text;
+        clearInterval(typeInterval);
+        typeInterval = setInterval(() => {
+            text.textContent += msg.charAt(i); // Using textContent
+            i++;
+            if (i % 3 === 0) playSound('type');
+            if (i >= msg.length) {
+                clearInterval(typeInterval);
+                text.classList.remove('typewriter');
+            }
+        }, 30);
+    }
+
+    function startLevel() {
+        document.getElementById('dialog-modal').style.display = 'none';
+    }
+
+    function startGame() {
+        resize();
+        showBriefing(0);
+        loop();
+    }
+
+    // --- Physics ---
+    function getGravity(x, y, planet) {
+        const dx = planet.x - x;
+        const dy = planet.y - y;
+        const distSq = dx*dx + dy*dy;
+        const dist = Math.sqrt(distSq);
+        const force = G * planet.mass / Math.max(distSq, 500); 
+        return { x: (dx/dist)*force, y: (dy/dist)*force };
+    }
+
+    function getPrediction(vx, vy) {
+        const path = [];
+        let px = ship.x; let py = ship.y;
+        let pvx = vx; let pvy = vy;
+
+        for(let i=0; i<200; i++) { 
+            if (i % 4 === 0) path.push({x: px, y: py});
+            for(let p of planets) {
+                const g = getGravity(px, py, p);
+                pvx += g.x; pvy += g.y;
+                if ((px-p.x)**2 + (py-p.y)**2 < p.radius**2) return path;
+            }
+            px += pvx; py += pvy;
+        }
+        return path;
+    }
+
+    function update() {
+        // Warp Animation
+        if (warpActive) {
+            systemScale *= 0.9;
+            systemAlpha -= 0.05;
+            stars.forEach(s => { s.x -= s.z * 50; if(s.x < 0) s.x = window.innerWidth; });
+            if (systemAlpha <= -0.5) {
+                warpActive = false;
+                showBriefing(currentLevel + 1);
+            }
+            return;
+        } else {
+            // Entrance Animation
+            if (systemScale > 1.01) systemScale += (1 - systemScale) * 0.1;
+            else systemScale = 1;
+            if (systemAlpha < 1) systemAlpha += 0.05;
+        }
+
+        // Gameplay
+        if (ship.active && !ship.crashed && !ship.win) {
+            document.getElementById('tutor-banner').style.opacity = '0';
+
+            for(let p of planets) {
+                const g = getGravity(ship.x, ship.y, p);
+                ship.vx += g.x; ship.vy += g.y;
+                if ((ship.x-p.x)**2 + (ship.y-p.y)**2 < (p.radius + ship.r)**2) crash();
+            }
+
+            ship.x += ship.vx; ship.y += ship.vy;
+            ship.trail.push({x: ship.x, y: ship.y});
+            if(ship.trail.length > 40) ship.trail.shift();
+
+            if ((ship.x-target.x)**2 + (ship.y-target.y)**2 < (target.r)**2) win();
+
+            if (ship.x < -300 || ship.x > window.innerWidth + 300 || ship.y < -300 || ship.y > window.innerHeight + 300) resetShip();
+
+            if(Math.random() > 0.5) particles.push({
+                x: ship.x, y: ship.y, vx: (Math.random()-0.5), vy: (Math.random()-0.5), 
+                life: 1, color: '#38bdf8', size: Math.random()*3 
+            });
+        } else if (ship.win) {
+            ship.x += (target.x - ship.x) * 0.15;
+            ship.y += (target.y - ship.y) * 0.15;
+            ship.r *= 0.85;
+        }
+
+        particles.forEach((p, i) => {
+            p.life -= 0.03; p.x += p.vx; p.y += p.vy;
+            if(p.life <= 0) particles.splice(i, 1);
+        });
+        
+        target.angle += 0.05;
+        planets.forEach(p => p.angle += 0.005);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+        // Stars
+        stars.forEach(s => {
+            ctx.globalAlpha = Math.random() * 0.5 + 0.2;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            if(warpActive) ctx.rect(s.x, s.y, s.z * 60, s.size);
+            else ctx.arc(s.x, s.y, s.size, 0, Math.PI*2);
+            ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        if (!warpActive) {
+            ctx.save();
+            // Transform for entrance animation
+            const cx = window.innerWidth/2;
+            const cy = window.innerHeight/2;
+            ctx.translate(cx, cy);
+            ctx.scale(systemScale, systemScale);
+            ctx.translate(-cx, -cy);
+            ctx.globalAlpha = Math.max(0, systemAlpha);
+
+            // Target
+            ctx.save(); ctx.translate(target.x, target.y); ctx.rotate(target.angle);
+            ctx.shadowBlur = 40; ctx.shadowColor = '#a855f7'; 
+            ctx.strokeStyle = '#d8b4fe'; ctx.lineWidth = 4;
+            for(let i=0; i<4; i++) {
+                ctx.beginPath(); ctx.arc(0, 0, target.r - (i*5), i, Math.PI + i); ctx.stroke();
+            }
+            ctx.restore(); ctx.shadowBlur = 0;
+
+            // Planets
+            const pulse = Math.sin(Date.now() / 300) * 3;
+            planets.forEach(p => {
+                ctx.save(); ctx.translate(p.x, p.y);
+                ctx.shadowBlur = 30 + pulse; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI*2); ctx.fill();
+                
+                // Rotation
+                ctx.save(); ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI*2); ctx.clip();
+                ctx.rotate(p.angle);
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                p.details.forEach(d => { ctx.beginPath(); ctx.arc(d.offX, d.offY, d.r, 0, Math.PI*2); ctx.fill(); });
+                // Shadow
+                const grad = ctx.createRadialGradient(-p.radius*0.3, -p.radius*0.3, 0, 0, 0, p.radius);
+                grad.addColorStop(0, 'rgba(255,255,255,0.1)'); grad.addColorStop(1, 'rgba(0,0,0,0.6)');
+                ctx.fillStyle = grad; ctx.fillRect(-p.radius, -p.radius, p.radius*2, p.radius*2);
+                ctx.restore(); ctx.restore(); ctx.shadowBlur = 0;
+            });
+
+            // Aim
+            if (isDragging && !ship.active && document.getElementById('dialog-modal').style.display === 'none') {
+                const dx = ship.x - dragCurrent.x;
+                const dy = ship.y - dragCurrent.y;
+                const scale = Math.min(Math.sqrt(dx*dx+dy*dy), 250) / Math.sqrt(dx*dx+dy*dy);
+                const powerX = dx * scale * 0.1;
+                const powerY = dy * scale * 0.1;
+
+                const path = getPrediction(powerX, powerY);
+                ctx.beginPath(); ctx.moveTo(ship.x, ship.y);
+                path.forEach(pt => ctx.lineTo(pt.x, pt.y));
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+
+                ctx.beginPath(); ctx.moveTo(ship.x, ship.y); ctx.lineTo(ship.x - dx*scale, ship.y - dy*scale);
+                ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.stroke();
+            }
+
+            // Ship (Using ship.r not ship.radius)
+            if (!ship.crashed && (!ship.win || ship.r > 1)) {
+                if(ship.active) {
+                    ctx.beginPath();
+                    ship.trail.forEach((t, i) => {
+                        ctx.lineTo(t.x, t.y);
+                        ctx.strokeStyle = `rgba(14, 165, 233, ${i/ship.trail.length})`;
+                        ctx.lineWidth = i/2 + 1;
+                    });
+                    ctx.stroke();
+                }
+                
+                // Pulsing ring if waiting
+                if(!ship.active && !isDragging) {
+                    ctx.strokeStyle = `rgba(56, 189, 248, ${Math.abs(Math.sin(Date.now()/500))})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(ship.x, ship.y, ship.r + 15, 0, Math.PI*2); ctx.stroke();
+                }
+
+                ctx.shadowBlur = 20; ctx.shadowColor = '#38bdf8'; ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(ship.x, ship.y, ship.r, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life * systemAlpha; ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            });
+            
+            ctx.restore(); // End Transform
+        }
+        
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(loop);
+    }
+
+    // --- Interactions ---
+    function handleStart(x, y) {
+        if (ship.active || document.getElementById('dialog-modal').style.display !== 'none') return;
+        const dx = x - ship.x; const dy = y - ship.y;
+        if (Math.sqrt(dx*dx + dy*dy) < 100) { isDragging = true; dragCurrent = { x, y }; playSound('charge'); }
+    }
+    function handleMove(x, y) { if (isDragging) dragCurrent = { x, y }; }
+    function handleEnd() {
+        if (isDragging) {
+            isDragging = false;
+            const dx = ship.x - dragCurrent.x; const dy = ship.y - dragCurrent.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > 20) {
+                const scale = Math.min(dist, 250) / dist;
+                ship.vx = dx * scale * 0.1;
+                ship.vy = dy * scale * 0.1;
+                ship.active = true; playSound('shoot');
+            }
+        }
+    }
+
+    canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+    window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+    window.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); handleStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+    window.addEventListener('touchmove', e => { handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+    window.addEventListener('touchend', handleEnd);
+
+    // --- Helpers ---
+    function crash() {
+        if(ship.crashed) return;
+        ship.crashed = true; playSound('crash');
+        for(let i=0; i<25; i++) particles.push({x: ship.x, y: ship.y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, life: 1, color: '#ef4444', size: Math.random()*4});
+        setTimeout(resetShip, 1200);
+    }
+
+    function win() {
+        if(ship.win) return;
+        ship.win = true; playSound('win');
+        for(let i=0; i<30; i++) particles.push({x: ship.x, y: ship.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 1, color: '#a855f7', size: Math.random()*4});
+        setTimeout(() => {
+            playSound('warp');
+            warpActive = true; 
+        }, 800);
+    }
+
+    function resetShip() {
+        ship.x = LEVELS[currentLevel].start.x * window.innerWidth;
+        ship.y = LEVELS[currentLevel].start.y * window.innerHeight;
+        ship.vx = 0; ship.vy = 0;
+        ship.active = false; ship.crashed = false; ship.win = false;
+        ship.r = 12; ship.trail = [];
+        particles = [];
+        document.getElementById('tutor-banner').style.opacity = '1';
+    }
+
+    function resetLevel() { loadLevel(currentLevel); document.getElementById('win-modal').style.display = 'none'; }
+    function loop() { update(); draw(); }
+
+    resize(); loadLevel(0); loop();
+
+</script>
+
+</body>
+</html>

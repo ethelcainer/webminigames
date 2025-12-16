@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photosynthesis Bloom</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Fredoka One', cursive;
+            user-select: none;
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+        }
+
+        .glass-card {
+            background: rgba(17, 25, 40, 0.4);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            color: white;
+            transition: transform 0.2s;
+        }
+
+        .interactive { pointer-events: auto; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: 1px solid #4ade80;
+            padding: 15px 50px;
+            font-family: 'Fredoka One', cursive;
+            font-size: 1.5rem;
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(34, 197, 94, 0.6);
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+        }
+
+        .btn-icon {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            width: 56px; height: 56px; 
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+            position: relative; 
+            z-index: 60;
+        }
+        .btn-icon:hover { 
+            background: rgba(255,255,255,0.3); 
+            transform: scale(1.2);
+        }
+        /* Updated to handle the image icon */
+        .btn-icon img { 
+            width: auto; 
+            height: auto; 
+            pointer-events: none; 
+        }
+
+        .stat-bar-bg {
+            width: 200px; height: 12px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px; overflow: hidden; margin-top: 5px;
+        }
+        .stat-bar-fill { height: 100%; border-radius: 10px; transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        .hidden { display: none !important; }
+        
+        @keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
+        .pulse { animation: pulse-soft 2s infinite; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="flex justify-between items-start w-full max-w-6xl mx-auto">
+            <div class="glass-card">
+                <div class="flex items-center gap-2 text-blue-400">
+                    <span class="text-2xl">💧</span>
+                    <span>TURGOR</span>
+                </div>
+                <div class="stat-bar-bg">
+                    <div id="bar-water" class="stat-bar-fill bg-blue-500 shadow-[0_0_10px_#3b82f6]" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <div class="glass-card flex flex-col items-center border-t-4 border-t-green-500">
+                <span class="text-xs opacity-60 tracking-widest uppercase mb-1">Current Form</span>
+                <span id="level-text" class="text-3xl text-green-300 drop-shadow-lg">SEEDLING</span>
+            </div>
+
+            <div class="flex gap-4 items-center">
+                <div class="glass-card">
+                    <div class="flex items-center gap-2 text-yellow-400">
+                        <span>ENERGY</span>
+                        <span class="text-2xl">⚡</span>
+                    </div>
+                    <div class="stat-bar-bg">
+                        <div id="bar-energy" class="stat-bar-fill bg-yellow-400 shadow-[0_0_10px_#facc15]" style="width: 0%;"></div>
+                    </div>
+                </div>
+                
+                <button onclick="Game.togglePause()" class="glass-card btn-icon interactive" aria-label="Pause Game">
+                    <p>⏸️</p>
+                </button>
+            </div>
+        </div>
+
+        <div id="modal-container" class="absolute inset-0 flex items-center justify-center z-50">
+            
+            <div id="start-screen" class="glass-card interactive text-center p-12 max-w-md pulse">
+                <h1 class="text-5xl mb-2 text-transparent bg-clip-text bg-gradient-to-br from-green-300 to-yellow-200 filter drop-shadow-md">
+                    Photosynthesis<br>Prime
+                </h1>
+                <p class="text-gray-300 mb-2 font-sans text-lg">
+                    Guide the plant with your <b>MOUSE</b>.<br>
+                    Catch Sun ☀️ & Water 💧.<br>
+                    Avoid the Pests 🦠.
+                </p>
+                <button onclick="Game.start()" class="btn-primary">Sprout 🌱</button>
+            </div>
+
+            <div id="game-over-screen" class="glass-card interactive text-center p-12 max-w-md hidden">
+                <div class="text-7xl mb-4">🥀</div>
+                <h2 class="text-4xl text-red-400 mb-2">Dried Out</h2>
+                <p id="death-reason" class="text-gray-300 mb-6 font-sans">Water levels critical.</p>
+                <div class="bg-black/40 rounded-xl p-4 mb-6 border border-white/10">
+                    <div class="text-xs text-gray-400 uppercase">Growth Achieved</div>
+                    <div id="final-score" class="text-3xl text-green-400">Seedling</div>
+                </div>
+                <button onclick="Game.start()" class="btn-primary">Re-grow 🌿</button>
+            </div>
+
+            <div id="pause-screen" class="glass-card interactive text-center p-12 max-w-md hidden">
+                <h2 class="text-4xl text-white mb-6">PAUSED</h2>
+                <button onclick="Game.togglePause()" class="btn-primary">Resume ▶️</button>
+            </div>
+
+            <div id="win-screen" class="glass-card interactive text-center p-12 max-w-md hidden">
+                <div class="text-7xl mb-4">🌷</div>
+                <h1 class="text-4xl text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 mb-4 filter drop-shadow-md">
+                    CONGRATULATIONS!
+                </h1>
+                <p class="text-gray-200 mb-6 font-sans text-lg">
+                    You have blossomed into a legendary<br><b class="text-xl text-pink-300">Giant Tulip</b>!
+                </p>
+                <button onclick="Game.start()" class="btn-primary">Plant Again 🌱</button>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="game-container"></div>
+
+    <script>
+        // --- 🌿 ORGANIC ART ASSETS (High Fidelity) ---
+        const ArtAssets = {
+            // Level 1: Tiny Sprout (Two leaves, tapered stem)
+            lvl1: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" fill="none">
+                    <defs>
+                        <linearGradient id="stemGrad" x1="0.5" y1="1" x2="0.5" y2="0">
+                            <stop offset="0%" stop-color="#14532d"/>
+                            <stop offset="100%" stop-color="#4ade80"/>
+                        </linearGradient>
+                        <linearGradient id="leafGrad" x1="0" y1="1" x2="1" y2="0">
+                            <stop offset="0%" stop-color="#16a34a"/>
+                            <stop offset="100%" stop-color="#86efac"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M46 100 C 46 80, 48 60, 50 40 C 52 60, 54 80, 54 100 Z" fill="url(#stemGrad)" />
+                    <path d="M50 45 Q 30 30, 20 40 Q 30 55, 50 50" fill="url(#leafGrad)" />
+                    <path d="M50 45 Q 70 30, 80 40 Q 70 55, 50 50" fill="url(#leafGrad)" />
+                   </svg>`,
+            
+            // Level 2: Growing Plant (3 Leaves, thicker base)
+            lvl2: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" fill="none">
+                    <defs>
+                        <linearGradient id="stemGrad2" x1="0.5" y1="1" x2="0.5" y2="0">
+                            <stop offset="0%" stop-color="#14532d"/>
+                            <stop offset="100%" stop-color="#22c55e"/>
+                        </linearGradient>
+                        <linearGradient id="leafGrad2" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#15803d"/>
+                            <stop offset="100%" stop-color="#86efac"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M45 100 Q 45 60, 50 30 Q 55 60, 55 100 Z" fill="url(#stemGrad2)" />
+                    <path d="M50 70 C 20 65, 10 50, 30 40 C 40 45, 50 70, 50 70" fill="url(#leafGrad2)"/>
+                    <path d="M50 50 C 80 45, 90 30, 70 20 C 60 25, 50 50, 50 50" fill="url(#leafGrad2)"/>
+                    <path d="M50 30 C 35 20, 30 10, 40 5 C 45 10, 50 30, 50 30" fill="url(#leafGrad2)"/>
+                   </svg>`,
+
+            // Level 3: Bushy (More foliage depth)
+            lvl3: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" fill="none">
+                     <defs>
+                        <linearGradient id="bushGrad" x1="0.5" y1="1" x2="0.5" y2="0">
+                            <stop offset="0%" stop-color="#064e3b"/>
+                            <stop offset="100%" stop-color="#34d399"/>
+                        </linearGradient>
+                        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                          <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+                          <feOffset dx="1" dy="1" result="offsetblur"/>
+                          <feComponentTransfer>
+                            <feFuncA type="linear" slope="0.3"/>
+                          </feComponentTransfer>
+                          <feMerge> 
+                            <feMergeNode in="offsetblur"/>
+                            <feMergeNode in="SourceGraphic"/> 
+                          </feMerge>
+                        </filter>
+                    </defs>
+                    <path d="M44 100 Q 40 60, 50 20 Q 60 60, 56 100 Z" fill="#166534" />
+                    <path d="M50 60 Q 20 50, 10 30 Q 30 40, 50 60" fill="#14532d" />
+                    <path d="M50 50 Q 80 40, 90 20 Q 70 30, 50 50" fill="#14532d" />
+                    <path d="M50 80 C 10 70, 0 50, 20 40 C 30 50, 50 80, 50 80" fill="url(#bushGrad)" filter="url(#shadow)"/>
+                    <path d="M50 40 C 70 20, 90 30, 80 50 C 70 45, 50 40, 50 40" fill="url(#bushGrad)" filter="url(#shadow)"/>
+                    <path d="M50 25 Q 30 10, 40 0 Q 50 10, 50 25" fill="#86efac" />
+                   </svg>`,
+
+            // Level 4: The Bud (Organic shape)
+            lvl4: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" fill="none">
+                    <defs>
+                        <linearGradient id="budGrad" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stop-color="#be185d"/>
+                            <stop offset="100%" stop-color="#fbcfe8"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M45 100 C 45 70, 48 40, 49 25 C 50 40, 53 70, 55 100 Z" fill="#15803d" />
+                    <path d="M50 60 Q 80 50, 85 30 Q 70 40, 50 60" fill="#22c55e" />
+                    <path d="M50 50 Q 20 40, 15 20 Q 30 30, 50 50" fill="#22c55e" />
+                    <path d="M45 28 Q 50 35, 55 28 L 50 20 Z" fill="#166534" />
+                    <path d="M50 28 C 35 28, 35 5, 50 2 C 65 5, 65 28, 50 28" fill="url(#budGrad)" stroke="#9d174d" stroke-width="1" />
+                   </svg>`,
+
+            // Level 5: The Royal Tulip (Detailed)
+            lvl5: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" fill="none">
+                    <defs>
+                        <linearGradient id="petalMain" x1="0.5" y1="1" x2="0.5" y2="0">
+                            <stop offset="0%" stop-color="#db2777"/>
+                            <stop offset="50%" stop-color="#f472b6"/>
+                            <stop offset="100%" stop-color="#fbcfe8"/>
+                        </linearGradient>
+                        <linearGradient id="petalBack" x1="0.5" y1="1" x2="0.5" y2="0">
+                            <stop offset="0%" stop-color="#831843"/>
+                            <stop offset="100%" stop-color="#be185d"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M46 100 C 46 70, 49 50, 49 35 C 51 50, 54 70, 54 100 Z" fill="#15803d" />
+                    
+                    <path d="M50 70 C 80 60, 95 40, 80 30 C 75 40, 60 60, 50 70" fill="#166534"/>
+                    <path d="M50 60 C 20 50, 5 30, 20 20 C 25 30, 40 50, 50 60" fill="#166534"/>
+
+                    <path d="M40 35 Q 50 5, 60 35" fill="url(#petalBack)" />
+                    <path d="M50 40 C 25 40, 25 10, 50 15" fill="url(#petalMain)" stroke="#be185d" stroke-width="0.5"/>
+                    <path d="M50 40 C 75 40, 75 10, 50 15" fill="url(#petalMain)" stroke="#be185d" stroke-width="0.5"/>
+                    <path d="M50 42 C 35 42, 35 15, 50 8 C 65 15, 65 42, 50 42" fill="url(#petalMain)" stroke="#be185d" stroke-width="0.5"/>
+                   </svg>`,
+        };
+
+        function getTextureFromSVG(svgString) {
+            const blob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            return PIXI.Texture.from(url);
+        }
+
+        // --- 🎵 Audio System ---
+        const AudioSys = {
+            ctx: null,
+            init: function() {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+            },
+            playTone: function(freq, type, duration, vol = 0.1, slide = 0) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                if(slide !== 0) {
+                    osc.frequency.exponentialRampToValueAtTime(freq + slide, this.ctx.currentTime + duration);
+                }
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            playCollectSun: function() {
+                this.playTone(880, 'sine', 0.1, 0.1);
+                setTimeout(() => this.playTone(1760, 'sine', 0.2, 0.05), 50);
+            },
+            playCollectWater: function() {
+                this.playTone(300, 'triangle', 0.1, 0.1, 100); 
+            },
+            playDamage: function() {
+                this.playTone(100, 'sawtooth', 0.3, 0.15, -50); 
+            },
+            playLevelUp: function() {
+                [440, 554, 659, 880].forEach((f, i) => setTimeout(() => this.playTone(f, 'sine', 0.5, 0.1), i*100));
+            },
+            playWin: function() {
+                [440, 554, 659, 880, 1108, 1318].forEach((f, i) => setTimeout(() => this.playTone(f, 'sine', 0.6, 0.1), i*150));
+            }
+        };
+
+        // --- 🎮 Game Engine ---
+        const Game = {
+            app: null,
+            container: document.getElementById('game-container'),
+            state: 'menu', 
+            
+            energy: 0, water: 100, level: 1,
+            targetScale: 1, 
+            
+            player: null, playerSprite: null,
+            items: [], particles: [], floatTexts: [],
+            bgSprite: null, decoLayer: null, landLayer: null, 
+            
+            targetX: window.innerWidth / 2,
+            
+            stages: ['Seedling', 'Sprout', 'Bush', 'Young Tree', 'Royal Tulip', 'Master'],
+            spawnTimer: 0,
+            bgGrads: [
+                [0, '#020617', 1, '#1e293b'], 
+                [0, '#172554', 1, '#334155'], 
+                [0, '#312e81', 0.5, '#4c1d95', 1, '#a855f7'], 
+                [0, '#7c2d12', 0.5, '#c2410c', 1, '#fdba74'], 
+                [0, '#4a044e', 0.6, '#a21caf', 1, '#e879f9'], 
+                [0, '#000000', 0.4, '#1e1b4b', 1, '#4c1d95']  
+            ],
+
+            init: function() {
+                this.app = new PIXI.Application({
+                    background: '#000000',
+                    resizeTo: window,
+                    antialias: true,
+                    autoDensity: true,
+                    resolution: window.devicePixelRatio || 1
+                });
+                this.container.appendChild(this.app.view);
+
+                this.bgLayer = new PIXI.Container();
+                this.app.stage.addChild(this.bgLayer);
+                this.createDynamicBackground();
+
+                this.landLayer = new PIXI.Container();
+                this.app.stage.addChild(this.landLayer);
+                this.createLand();
+
+                this.gameLayer = new PIXI.Container();
+                this.app.stage.addChild(this.gameLayer);
+
+                this.uiLayer = new PIXI.Container();
+                this.app.stage.addChild(this.uiLayer);
+
+                this.createPlayer();
+
+                this.app.stage.eventMode = 'static';
+                this.app.stage.hitArea = this.app.screen;
+                this.app.stage.on('pointermove', (e) => {
+                    if (this.state === 'playing') {
+                        this.targetX = e.global.x;
+                    }
+                });
+
+                window.addEventListener('keydown', (e) => {
+                    if(e.code === 'Space') {
+                        this.togglePause();
+                    }
+                });
+
+                this.app.ticker.add((delta) => this.loop(delta));
+            },
+
+            createDynamicBackground: function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1; canvas.height = 500;
+                this.bgSprite = new PIXI.Sprite(PIXI.Texture.from(canvas));
+                this.bgSprite.width = window.innerWidth;
+                this.bgSprite.height = window.innerHeight;
+                this.bgLayer.addChild(this.bgSprite);
+
+                this.decoLayer = new PIXI.Container();
+                this.bgLayer.addChild(this.decoLayer);
+
+                this.updateBackgroundTexture(true); 
+                this.updateDecorations();
+
+                this.rays = new PIXI.Graphics();
+                this.rays.beginFill(0xFFFFFF, 0.03);
+                this.rays.drawPolygon([0,0, 200,1000, -200,1000]);
+                this.rays.drawPolygon([0,0, 500,1000, 100,1000]);
+                this.rays.drawPolygon([0,0, -500,1000, -100,1000]);
+                this.rays.endFill();
+                this.rays.x = window.innerWidth / 2;
+                this.rays.y = -100;
+                this.rays.pivot.y = 0;
+                this.bgLayer.addChild(this.rays);
+
+                this.stars = [];
+                for(let i=0; i<30; i++) { 
+                    const s = new PIXI.Graphics();
+                    s.beginFill(0xFFFFFF, Math.random()*0.2); 
+                    s.drawCircle(0,0, Math.random()*2 + 0.5);
+                    s.x = Math.random() * window.innerWidth;
+                    s.y = Math.random() * window.innerHeight;
+                    s.speed = Math.random() * 0.5 + 0.1;
+                    this.stars.push(s);
+                    this.bgLayer.addChild(s);
+                }
+            },
+
+            createLand: function() {
+                this.landLayer.removeChildren();
+                const g = new PIXI.Graphics();
+                g.beginFill(0x0f172a); 
+                g.lineStyle(4, 0x1e293b); 
+                g.moveTo(0, window.innerHeight);
+                g.lineTo(0, window.innerHeight - 50);
+                g.bezierCurveTo(
+                    window.innerWidth * 0.3, window.innerHeight - 100,
+                    window.innerWidth * 0.7, window.innerHeight - 20,
+                    window.innerWidth, window.innerHeight - 60
+                );
+                g.lineTo(window.innerWidth, window.innerHeight);
+                g.endFill();
+                this.landLayer.addChild(g);
+            },
+
+            updateBackgroundTexture: function(instant = false) {
+                const gradData = this.bgGrads[Math.min(this.level - 1, this.bgGrads.length - 1)];
+                const canvas = document.createElement('canvas');
+                canvas.width = 1; canvas.height = 500;
+                const ctx = canvas.getContext('2d');
+                const grad = ctx.createLinearGradient(0, 0, 0, 500);
+                for(let i=0; i < gradData.length; i+=2) {
+                     grad.addColorStop(gradData[i], gradData[i+1]);
+                }
+                ctx.fillStyle = grad;
+                ctx.fillRect(0,0,1,500);
+                const newTexture = PIXI.Texture.from(canvas);
+
+                if(instant) {
+                    this.bgSprite.texture = newTexture;
+                } else {
+                    const oldSprite = new PIXI.Sprite(this.bgSprite.texture);
+                    oldSprite.width = window.innerWidth;
+                    oldSprite.height = window.innerHeight;
+                    oldSprite.alpha = 1;
+                    this.bgLayer.addChildAt(oldSprite, 1); 
+
+                    this.bgSprite.texture = newTexture;
+                    let fadeTicker = new PIXI.Ticker();
+                    fadeTicker.add(() => {
+                        oldSprite.alpha -= 0.01; 
+                        if(oldSprite.alpha <= 0) {
+                            this.bgLayer.removeChild(oldSprite);
+                            fadeTicker.destroy();
+                        }
+                    });
+                    fadeTicker.start();
+                }
+            },
+
+            updateDecorations: function() {
+                 if (this.decoLayer.children.length > 0) {
+                     const oldDeco = new PIXI.Container();
+                     while(this.decoLayer.children.length > 0) {
+                         oldDeco.addChild(this.decoLayer.getChildAt(0));
+                     }
+                     this.bgLayer.addChild(oldDeco); 
+
+                     const fadeOut = new PIXI.Ticker();
+                     fadeOut.add(() => {
+                         oldDeco.alpha -= 0.01;
+                         oldDeco.children.forEach(d => { if(d.vx) d.x += d.vx; });
+                         if (oldDeco.alpha <= 0) {
+                             oldDeco.destroy({children: true});
+                             fadeOut.destroy();
+                         }
+                     });
+                     fadeOut.start();
+                 }
+
+                 this.decoLayer.alpha = 0; 
+                 if (this.level <= 2 || this.level >= 6) {
+                     for(let i=0; i<150; i++) {
+                         const s = new PIXI.Graphics();
+                         s.beginFill(0xFFFFFF, Math.random()*0.8);
+                         s.drawCircle(0,0, Math.random()*1.5);
+                         s.endFill();
+                         s.x = Math.random() * this.app.screen.width;
+                         s.y = Math.random() * this.app.screen.height;
+                         this.decoLayer.addChild(s);
+                     }
+                 } else {
+                     for(let i=0; i<12; i++) {
+                         const cloud = new PIXI.Graphics();
+                         cloud.beginFill(0xFFFFFF, 0.08 + Math.random()*0.1);
+                         const w = Math.random()*250 + 100;
+                         const h = Math.random()*70 + 30;
+                         cloud.drawEllipse(0,0, w, h);
+                         cloud.endFill();
+                         cloud.x = Math.random() * this.app.screen.width;
+                         cloud.y = Math.random() * (this.app.screen.height * 0.7);
+                         cloud.vx = (Math.random() * 0.3 + 0.1) * (Math.random() < 0.5 ? 1 : -1);
+                         this.decoLayer.addChild(cloud);
+                     }
+                 }
+                 const fadeIn = new PIXI.Ticker();
+                 fadeIn.add(() => {
+                     this.decoLayer.alpha += 0.01;
+                     if (this.decoLayer.alpha >= 1) {
+                         this.decoLayer.alpha = 1;
+                         fadeIn.destroy();
+                     }
+                 });
+                 fadeIn.start();
+            },
+
+            createPlayer: function() {
+                this.player = new PIXI.Container();
+                this.player.x = window.innerWidth / 2;
+                this.player.y = window.innerHeight - 40; 
+
+                // Create the container for the visual sprite
+                this.playerSprite = new PIXI.Sprite(getTextureFromSVG(ArtAssets.lvl1));
+                this.playerSprite.anchor.set(0.5, 1); 
+                
+                // FIXED: We don't set width/height directly here anymore to avoid overwriting scale.
+                // We let the loop handle the scaling relative to the 512px texture.
+                // Initial scale set to ~0.15 (80px / 512px)
+                this.playerSprite.scale.set(80/512);
+
+                // Add a glow filter
+                const glowFilter = new PIXI.BlurFilter(4);
+                glowFilter.quality = 3;
+                
+                // Add a background glow circle behind the plant
+                const backGlow = new PIXI.Graphics();
+                backGlow.beginFill(0x4ade80, 0.3);
+                backGlow.drawCircle(0, -40, 35); 
+                backGlow.endFill();
+                backGlow.filters = [new PIXI.BlurFilter(20)];
+
+                this.player.addChild(backGlow);
+                this.player.addChild(this.playerSprite);
+                this.gameLayer.addChild(this.player);
+            },
+
+            updatePlayerPlant: function() {
+                // Determine which SVG to use based on level
+                let svg = ArtAssets.lvl1;
+                if(this.level === 2) svg = ArtAssets.lvl2;
+                if(this.level === 3) svg = ArtAssets.lvl3;
+                if(this.level === 4) svg = ArtAssets.lvl4;
+                if(this.level >= 5) svg = ArtAssets.lvl5;
+
+                // Swap texture
+                this.playerSprite.texture = getTextureFromSVG(svg);
+            },
+
+            spawnItem: function() {
+                const typeRand = Math.random();
+                let type, color, char, scoreVal;
+
+                if (typeRand < 0.45) { type='sun'; color=0xfacc15; char='☀️'; scoreVal=10; }
+                else if (typeRand < 0.90) { type='water'; color=0x3b82f6; char='💧'; scoreVal=15; }
+                else { type='pest'; color=0xa855f7; char='🦠'; scoreVal=-20; }
+
+                const item = new PIXI.Container();
+                
+                const gfx = new PIXI.Graphics();
+                gfx.lineStyle(2, color, 0.8);
+                gfx.beginFill(color, 0.1);
+                gfx.drawCircle(0,0, 25);
+                gfx.endFill();
+
+                const txt = new PIXI.Text(char, {fontSize: 30});
+                txt.anchor.set(0.5);
+
+                item.addChild(gfx, txt);
+                item.x = Math.random() * (this.app.screen.width - 50) + 25;
+                item.y = -50;
+                
+                item.type = type;
+                item.val = scoreVal;
+                item.color = color;
+                item.baseSpeed = 3 + (this.level * 0.5);
+                item.wobbleOffset = Math.random() * 100;
+
+                this.items.push(item);
+                this.gameLayer.addChild(item);
+            },
+
+            spawnFloatingText: function(x, y, text, color) {
+                const ft = new PIXI.Text(text, {
+                    fontFamily: 'Fredoka One', fontSize: 24, fill: color,
+                    stroke: '#000000', strokeThickness: 4
+                });
+                ft.anchor.set(0.5);
+                ft.x = x; ft.y = y;
+                ft.life = 1.0;
+                ft.vy = -2;
+                this.floatTexts.push(ft);
+                this.uiLayer.addChild(ft);
+            },
+
+            explode: function(x, y, color) {
+                for(let i=0; i<8; i++) {
+                    const p = new PIXI.Graphics();
+                    p.beginFill(color);
+                    p.drawCircle(0,0, Math.random()*5 + 2);
+                    p.endFill();
+                    p.x = x; p.y = y;
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 5 + 2;
+                    p.vx = Math.cos(angle) * speed;
+                    p.vy = Math.sin(angle) * speed;
+                    p.life = 1.0;
+                    this.particles.push(p);
+                    this.gameLayer.addChild(p);
+                }
+            },
+
+            spawnTrail: function() {
+                if(Math.random() > 0.3) return;
+                const p = new PIXI.Graphics();
+                p.beginFill(0x4ade80, 0.4);
+                p.drawCircle(0,0, 3 * this.targetScale);
+                p.endFill();
+                p.x = this.player.x + (Math.random()*20 - 10);
+                p.y = this.player.y - 10; 
+                p.vx = 0; p.vy = 2; 
+                p.life = 0.5;
+                this.particles.push(p);
+                this.gameLayer.addChild(p);
+            },
+
+            togglePause: function() {
+                if(this.state === 'playing') {
+                    this.state = 'paused';
+                    document.getElementById('pause-screen').classList.remove('hidden');
+                } else if (this.state === 'paused') {
+                    this.state = 'playing';
+                    document.getElementById('pause-screen').classList.add('hidden');
+                }
+            },
+
+            start: function() {
+                AudioSys.init();
+                this.energy = 0; this.water = 100; this.level = 1; 
+                this.targetScale = 1; 
+                this.items.forEach(i => this.gameLayer.removeChild(i));
+                this.items = [];
+                this.updatePlayerPlant(); 
+                this.updateBackgroundTexture(true);
+                this.updateDecorations();
+                this.state = 'playing';
+                
+                document.getElementById('start-screen').classList.add('hidden');
+                document.getElementById('game-over-screen').classList.add('hidden');
+                document.getElementById('win-screen').classList.add('hidden');
+                document.getElementById('pause-screen').classList.add('hidden');
+            },
+
+            winGame: function() {
+                this.state = 'win';
+                AudioSys.playWin();
+                document.getElementById('win-screen').classList.remove('hidden');
+            },
+
+            loop: function(delta) {
+                this.rays.rotation = Math.sin(Date.now() / 2000) * 0.1;
+                this.stars.forEach(s => {
+                    s.y += s.speed * delta;
+                    if(s.y > this.app.screen.height) s.y = -10;
+                });
+                this.decoLayer.children.forEach(d => {
+                    if(d.vx) {
+                         d.x += d.vx * delta;
+                         if(d.x > this.app.screen.width + 200) d.x = -200;
+                         if(d.x < -200) d.x = this.app.screen.width + 200;
+                    }
+                });
+
+                if (this.state !== 'playing') return;
+
+                // 1. Player Physics
+                const dist = this.targetX - this.player.x;
+                this.player.x += dist * 0.15 * delta; 
+                
+                const tilt = (dist * 0.002);
+                this.playerSprite.skew.x = -tilt; 
+                this.playerSprite.rotation = tilt * 0.5;
+
+                if(this.player.x < 30) this.player.x = 30;
+                if(this.player.x > this.app.screen.width - 30) this.player.x = this.app.screen.width - 30;
+
+                // --- FIXED SCALING LOGIC ---
+                const baseScale = 80 / 512; 
+                const currentTargetScale = this.targetScale * baseScale;
+                
+                const sSpeed = 0.15 * delta;
+                this.playerSprite.scale.x += (currentTargetScale - this.playerSprite.scale.x) * sSpeed;
+                this.playerSprite.scale.y += (currentTargetScale - this.playerSprite.scale.y) * sSpeed;
+
+                this.spawnTrail();
+
+                // 2. Spawning
+                this.spawnTimer += delta;
+                const spawnRate = Math.max(20, 60 - (this.level * 5));
+                if (this.spawnTimer > spawnRate) {
+                    if(Math.random() < 0.7) this.spawnItem();
+                    this.spawnTimer = 0;
+                }
+
+                // 3. Items Update
+                const time = Date.now();
+                for (let i = this.items.length - 1; i >= 0; i--) {
+                    const item = this.items[i];
+                    item.y += item.baseSpeed * delta;
+                    item.x += Math.sin(time * 0.005 + item.wobbleOffset) * 1.5 * delta;
+
+                    const dx = item.x - this.player.x;
+                    const dy = item.y - (this.player.y - (this.playerSprite.height/2)); 
+                    const distance = Math.sqrt(dx*dx + dy*dy);
+                    
+                    const hitRadius = (this.playerSprite.height / 2) + 20; 
+
+                    if (distance < hitRadius) {
+                        this.gameLayer.removeChild(item);
+                        this.items.splice(i, 1);
+                        
+                        // Bounce effect (Scaled appropriately to the new size)
+                        const baseScale = 80 / 512; 
+                        this.playerSprite.scale.y -= baseScale * 0.4; 
+
+                        if (item.type === 'pest') {
+                            this.water += item.val;
+                            AudioSys.playDamage();
+                            this.spawnFloatingText(this.player.x, this.player.y - 100, item.val, '#ef4444');
+                            this.gameLayer.x = (Math.random()-0.5)*10;
+                            setTimeout(()=>this.gameLayer.x=0, 50);
+                        } else {
+                            if(item.type === 'sun') {
+                                this.energy += item.val;
+                                AudioSys.playCollectSun();
+                                this.spawnFloatingText(this.player.x, this.player.y - 100, "+" + item.val, '#facc15');
+                            } else {
+                                this.water = Math.min(100, this.water + item.val);
+                                AudioSys.playCollectWater();
+                                this.spawnFloatingText(this.player.x, this.player.y - 100, "+" + item.val, '#3b82f6');
+                            }
+                            this.explode(item.x, item.y, item.color);
+                        }
+                    } else if (item.y > this.app.screen.height + 50) {
+                        this.gameLayer.removeChild(item);
+                        this.items.splice(i, 1);
+                    }
+                }
+
+                // 4. Particles
+                [this.particles, this.floatTexts].forEach(arr => {
+                    for(let i=arr.length-1; i>=0; i--) {
+                        const p = arr[i];
+                        if(p.vx) p.x += p.vx * delta; 
+                        p.y += (p.vy || -1) * delta;
+                        p.life -= 0.03 * delta;
+                        p.alpha = p.life;
+                        if(p.life <= 0) {
+                            p.parent.removeChild(p);
+                            arr.splice(i, 1);
+                        }
+                    }
+                });
+
+                // 5. Game Rules
+                this.water -= 0.06 * delta;
+
+                if(this.energy >= 100) {
+                    if(this.level >= 6) {
+                        this.winGame();
+                        return; 
+                    }
+
+                    this.level++;
+                    this.energy = 0;
+                    this.water = Math.min(100, this.water + 30);
+                    
+                    AudioSys.playLevelUp();
+                    this.spawnFloatingText(this.player.x, this.player.y - 150, "LEVEL UP!", '#ffffff');
+                    
+                    this.targetScale += 0.25; 
+                    
+                    this.updateBackgroundTexture(false); 
+                    this.updateDecorations(); 
+                    this.updatePlayerPlant(); 
+                }
+
+                if(this.water <= 0) {
+                    this.state = 'gameover';
+                    document.getElementById('game-over-screen').classList.remove('hidden');
+                    document.getElementById('final-score').innerText = this.stages[Math.min(this.level-1, 5)];
+                }
+
+                this.updateDOM();
+            },
+
+            updateDOM: function() {
+                document.getElementById('bar-water').style.width = Math.max(0, this.water) + "%";
+                document.getElementById('bar-energy').style.width = this.energy + "%";
+                if(this.water < 30) {
+                     document.getElementById('bar-water').classList.add('bg-red-500');
+                     document.getElementById('bar-water').classList.remove('bg-blue-500');
+                } else {
+                     document.getElementById('bar-water').classList.remove('bg-red-500');
+                     document.getElementById('bar-water').classList.add('bg-blue-500');
+                }
+                const lvlName = this.stages[Math.min(this.level-1, 5)];
+                document.getElementById('level-text').innerText = lvlName;
+            }
+        };
+
+        window.addEventListener('resize', () => {
+            Game.app.renderer.resize(window.innerWidth, window.innerHeight);
+            Game.player.y = window.innerHeight - 40; 
+            Game.bgSprite.width = window.innerWidth;
+            Game.bgSprite.height = window.innerHeight;
+            Game.rays.x = window.innerWidth / 2;
+            
+            Game.updateBackgroundTexture(true);
+            Game.updateDecorations();
+            Game.createLand();
+        });
+
+        Game.init();
+    </script>
+</body>
+</html>

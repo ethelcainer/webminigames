@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Habitat Hero: Living World Final</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/Draggable.min.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <style>
+        :root {
+            /* Bright Day */
+            --sky-day: linear-gradient(180deg, #29B6F6 0%, #B3E5FC 100%);
+            /* Deep Midnight Purple/Blue */
+            --sky-night: linear-gradient(180deg, #0D1B2A 0%, #311B92 50%, #4A148C 100%);
+        }
+
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Fredoka', sans-serif;
+            overflow: hidden;
+            height: 100vh; width: 100vw;
+            background: #111;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #app {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+        }
+
+        /* --- Main Game Wrapper (Vue Controlled) --- */
+        .game-wrapper {
+            position: relative; width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- SKY SYSTEM (Crossfade) --- */
+        .sky-layer-bg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+            transition: opacity 3s ease-in-out;
+        }
+        
+        .bg-day { background: var(--sky-day); opacity: 1; }
+        .bg-night { background: var(--sky-night); opacity: 0; }
+
+        /* ACTIVE NIGHT MODE */
+        .game-wrapper.night-mode .bg-day { opacity: 0; }
+        .game-wrapper.night-mode .bg-night { opacity: 1; }
+
+        /* --- Celestial Bodies (Sun/Moon) --- */
+        .celestial-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 60%;
+            z-index: 1; pointer-events: none;
+        }
+
+        .sun {
+            position: absolute; top: 10%; right: 10%;
+            width: 90px; height: 90px; background: #FDD835;
+            border-radius: 50%; 
+            box-shadow: 0 0 40px #FBC02D, 0 0 80px rgba(253, 216, 53, 0.4);
+            transition: top 3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+        
+        .moon {
+            position: absolute; top: 150%;
+            right: 15%;
+            width: 80px; height: 80px; background: #EEEEEE;
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(255,255,255,0.8);
+            transition: top 3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+        .crater { position: absolute; background: #E0E0E0; border-radius: 50%; opacity: 0.6; }
+
+        .game-wrapper.night-mode .sun { top: 150%; } 
+        .game-wrapper.night-mode .moon { top: 10%; } 
+
+        .star {
+            position: absolute; background: white; border-radius: 50%;
+            opacity: 0; transition: opacity 3s;
+        }
+        .game-wrapper.night-mode .star { opacity: 0.9; animation: twinkle 4s infinite; }
+
+        .cloud {
+            position: absolute; background: white; border-radius: 50px; opacity: 0.8;
+            filter: drop-shadow(0 4px 0px rgba(0,0,0,0.1));
+            animation: floatCloud 60s linear infinite; transition: opacity 3s;
+        }
+        .cloud::after { content:''; position: absolute; width: 50%; height: 100%; top: -45%; left: 15%; background: inherit; border-radius: 50%; }
+        .game-wrapper.night-mode .cloud { opacity: 0.15; }
+
+        /* --- HUD --- */
+        .hud {
+            position: absolute; top: 20px; left: 20px; right: 20px;
+            display: flex; justify-content: space-between;
+            z-index: 300; pointer-events: none;
+        }
+        .hud-content { pointer-events: auto; display: flex; gap: 15px; }
+        
+        .badge {
+            background: white; padding: 8px 20px; border-radius: 30px;
+            font-weight: 700; color: #455A64;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+            display: flex; align-items: center; gap: 8px; font-size: 1.1rem;
+            border: 2px solid #ECEFF1;
+        }
+        .btn-circle {
+            width: 50px; height: 50px; border-radius: 50%; border: none;
+            background: white; font-size: 1.5rem; cursor: pointer;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .btn-circle:active { transform: translateY(2px); box-shadow: none; }
+
+        /* --- Game Board --- */
+        .game-area {
+            flex: 1; display: flex; align-items: flex-end;
+            position: relative; z-index: 10;
+            height: 100%; width: 100%;
+        }
+
+        .habitat-zone {
+            flex: 1; height: 100%; 
+            position: relative;
+            display: flex; flex-direction: column; justify-content: flex-end;
+            overflow: hidden; 
+            border-right: 2px solid rgba(0,0,0,0.05);
+        }
+
+        .ground-floor {
+            height: 35%; width: 100%;
+            position: absolute; bottom: 0; left: 0; z-index: 2;
+        }
+        
+        .scenery-back {
+            position: absolute; bottom: 30%; width: 100%; height: 50%;
+            z-index: 1; pointer-events: none;
+        }
+
+        .habitat-label {
+            position: absolute; top: 15%; width: 100%;
+            text-align: center; font-size: 2rem; font-weight: 900;
+            color: rgba(255,255,255,0.95); letter-spacing: 2px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            pointer-events: none; z-index: 5;
+        }
+        .game-wrapper.night-mode .habitat-label { color: rgba(255,255,255,0.6); }
+
+        /* --- FIXED TREE SYSTEM --- */
+        .tree-wrapper {
+            position: absolute; bottom: 0;
+            display: flex; flex-direction: column; align-items: center;
+            z-index: 10;
+        }
+        
+        .t-foliage {
+            width: 0; height: 0; 
+            border-left: 40px solid transparent; 
+            border-right: 40px solid transparent;
+            border-bottom: 120px solid #2E7D32;
+            z-index: 2;
+            position: relative;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.1));
+            margin-bottom: 25px;
+        }
+        .t-foliage::after {
+            content:''; position: absolute; 
+            left: -30px; top: 30px;
+            border-left: 30px solid transparent; 
+            border-right: 30px solid transparent;
+            border-bottom: 80px solid #388E3C; 
+        }
+
+        .t-trunk {
+            width: 18px; height: 40px; 
+            background: #4E342E;
+            border-radius: 0 0 4px 4px;
+            z-index: 1;
+            position: absolute; 
+            bottom: 0;
+        }
+
+        /* --- Habitats --- */
+        .h-forest .ground-floor { background: linear-gradient(to bottom, #66BB6A 0%, #388E3C 100%); border-top: 8px solid #81C784; }
+        
+        .h-polar .ground-floor { background: linear-gradient(to bottom, #B3E5FC 0%, #81D4FA 100%); border-top: 8px solid #E1F5FE; }
+        .ice-sheet {
+            position: absolute; bottom: 0; width: 100%; height: 40px; background: white; opacity: 0.5;
+            border-radius: 50px 50px 0 0;
+        }
+        .mountain-ice {
+            position: absolute; bottom: 0; width: 0; height: 0;
+            border-left: 80px solid transparent; border-right: 80px solid transparent;
+            border-bottom: 180px solid #E1F5FE; opacity: 0.9;
+        }
+        
+        .h-savanna .ground-floor { background: linear-gradient(to bottom, #FDD835 0%, #FBC02D 100%); border-top: 8px solid #FFF176; }
+        .acacia-trunk { position: absolute; bottom: 0; width: 12px; height: 90px; background: #5D4037; border-radius: 5px; }
+        .acacia-leaf {
+            position: absolute; bottom: 70px; left: -45px; width: 100px; height: 35px;
+            background: #689F38; border-radius: 50px 50px 10px 10px; opacity: 0.9;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+        }
+        .grass-tuft {
+            position: absolute; bottom: 0; width: 15px; height: 25px; 
+            background: transparent; border-left: 8px solid #558B2F; border-radius: 50% 0 0 0;
+        }
+
+        .h-ocean .ground-floor { background: linear-gradient(to bottom, #0288D1 0%, #01579B 100%); height: 85%; }
+        .sand-bed { position: absolute; bottom: 0; width: 100%; height: 50px; background: #FFCC80; z-index: 3; }
+        .ocean-surface {
+            position: absolute; top: -20px; width: 100%; height: 30px; background: #4FC3F7; opacity: 0.6;
+            border-radius: 0 0 50% 50%; animation: sway 4s infinite alternate;
+        }
+        .kelp {
+            position: absolute; bottom: 0; width: 10px; height: 80px; background: #004D40; border-radius: 10px;
+            animation: wave 3s infinite ease-in-out alternate; transform-origin: bottom;
+        }
+        .bubble {
+            position: absolute; background: rgba(255,255,255,0.3); border-radius: 50%;
+            animation: floatBubble 5s linear infinite;
+        }
+
+        /* --- Animals --- */
+        .animal-container {
+            position: absolute; width: 80px; height: 80px;
+            z-index: 100; cursor: grab;
+            filter: drop-shadow(0 0 2px white) drop-shadow(0 4px 4px rgba(0,0,0,0.3));
+            transition: transform 0.1s;
+        }
+        .animal-container:active { cursor: grabbing; transform: scale(1.1); }
+        .animal-container.walking { cursor: default; pointer-events: none; z-index: 15; filter: none; }
+
+        .inner { width: 100%; height: 100%; position: relative; }
+        .eyes { position: absolute; z-index: 10; display: flex; gap: 8px; justify-content: center; width: 100%; top: 30%; }
+        .eye { width: 6px; height: 6px; background: black; border-radius: 50%; animation: blink 4s infinite; }
+        .eye-bg { background: white; padding: 2px; border-radius: 50%; }
+
+        /* Animal CSS Art */
+        .lion .mane { width: 70px; height: 70px; background: #E65100; border-radius: 50%; position: absolute; top: 5px; left: 5px; }
+        .lion .face { width: 40px; height: 40px; background: #FFCA28; border-radius: 50%; position: absolute; top: 20px; left: 20px; }
+        .lion .nose { width: 10px; height: 8px; background: #3E2723; border-radius: 5px; position: absolute; top: 20px; left: 15px; }
+
+        .bear .head { width: 50px; height: 45px; background: #5D4037; border-radius: 40% 40% 45% 45%; position: absolute; top: 10px; left: 15px; }
+        .bear .ear-l, .bear .ear-r { width: 16px; height: 16px; background: #4E342E; border-radius: 50%; position: absolute; top: 5px; }
+        .bear .ear-l { left: 12px; } .bear .ear-r { right: 12px; }
+        .bear .snout { width: 20px; height: 14px; background: #8D6E63; border-radius: 10px; position: absolute; bottom: 8px; left: 15px; }
+
+        .penguin .body { width: 40px; height: 65px; background: #263238; border-radius: 25px 25px 15px 15px; position: absolute; bottom: 0; left: 20px; }
+        .penguin .belly { width: 26px; height: 50px; background: white; border-radius: 20px 20px 10px 10px; position: absolute; bottom: 5px; left: 27px; }
+        .penguin .beak { width: 12px; height: 8px; background: #FFC107; border-radius: 50%; position: absolute; top: 25px; left: 34px; }
+        
+        .turtle .shell { width: 60px; height: 40px; background: #43A047; border-radius: 50% 50% 20% 20%; position: absolute; bottom: 10px; left: 10px; border: 3px solid #2E7D32; }
+        .turtle .head { width: 25px; height: 25px; background: #81C784; border-radius: 50%; position: absolute; top: 20px; left: 0px; }
+        .turtle .leg { width: 12px; height: 12px; background: #81C784; border-radius: 50%; position: absolute; bottom: 5px; }
+
+        .octopus .head { width: 50px; height: 50px; background: #BA68C8; border-radius: 50%; position: absolute; top: 5px; left: 15px; }
+        .octopus .tentacles { position: absolute; bottom: 10px; width: 100%; text-align: center; }
+        .octopus .tentacle { display: inline-block; width: 10px; height: 25px; background: #BA68C8; border-radius: 5px; margin: 0 1px; transform-origin: top; animation: wave 1s infinite alternate; }
+
+        .fox .body { width: 50px; height: 35px; background: #F57C00; border-radius: 20px; position: absolute; bottom: 5px; left: 10px; }
+        .fox .chest { width: 20px; height: 20px; background: white; border-radius: 50%; position: absolute; top: 35px; left: 15px; z-index: 2; }
+        .fox .head { width: 35px; height: 35px; background: #F57C00; border-radius: 50%; position: absolute; top: 10px; left: 30px; z-index: 3; }
+        .fox .tail { width: 25px; height: 45px; background: #F57C00; border-radius: 25px; position: absolute; bottom: 10px; left: -5px; transform: rotate(-45deg); border: 2px solid #E65100; }
+        .fox .tail-tip { width: 100%; height: 15px; background: white; position: absolute; top:0; border-radius: 20px 20px 0 0; }
+
+        .elephant .body { width: 65px; height: 50px; background: #90A4AE; border-radius: 15px; position: absolute; bottom: 0; left: 5px; }
+        .elephant .head { width: 45px; height: 45px; background: #90A4AE; border-radius: 50%; position: absolute; top: 5px; left: 30px; z-index: 2; }
+        .elephant .ear { width: 25px; height: 35px; background: #78909C; border-radius: 50%; position: absolute; top: 10px; left: 20px; z-index: 1; transform: rotate(-10deg); }
+        .elephant .trunk { width: 12px; height: 35px; background: #90A4AE; border-radius: 6px; position: absolute; top: 30px; left: 65px; transform: rotate(-20deg); }
+
+        .walrus .body { width: 65px; height: 45px; background: #5D4037; border-radius: 30px 40px 10px 10px; position: absolute; bottom: 5px; left: 5px; }
+        .walrus .head { width: 35px; height: 35px; background: #5D4037; border-radius: 50%; position: absolute; top: 10px; left: 15px; }
+        .walrus .tusk { width: 6px; height: 18px; background: white; position: absolute; top: 30px; border-radius: 2px; }
+
+        .crab .body { width: 55px; height: 35px; background: #E53935; border-radius: 20px; position: absolute; bottom: 10px; left: 12px; }
+        .crab .claw { width: 20px; height: 20px; background: #E53935; border-radius: 50%; position: absolute; top: 0; border: 2px solid #C62828; }
+        .crab .legs { width: 100%; position: absolute; bottom: 0; text-align: center; }
+        .crab .leg-stick { display: inline-block; width: 4px; height: 12px; background: #C62828; margin: 0 4px; }
+
+        .zebra .body { width: 55px; height: 35px; background: white; border-radius: 20px; position: absolute; bottom: 5px; left: 10px;
+            background-image: repeating-linear-gradient(90deg, black 0, black 4px, white 4px, white 12px); z-index: 1;}
+        .zebra .head { width: 35px; height: 35px; background: white; border-radius: 50% 30% 30% 50%; position: absolute; top: 5px; left: 35px; z-index: 2;
+             background-image: repeating-linear-gradient(90deg, black 0, black 3px, white 3px, white 10px); }
+        .zebra .mane-strip { position: absolute; top: 0; left: 45px; width: 10px; height: 30px; background: black; border-radius: 5px 5px 0 0; z-index: 0; }
+
+        .giraffe .body { width: 45px; height: 30px; background: #fdb435; border-radius: 15px; position: absolute; bottom: 5px; left: 10px; }
+        .giraffe .neck { width: 12px; height: 50px; background: #fdb435; position: absolute; top: -15px; left: 35px; transform: rotate(-10deg); z-index: 2; }
+        .giraffe .head { width: 25px; height: 30px; background: #fdb435; border-radius: 50% 50% 30% 30%; position: absolute; top: -40px; left: 32px; z-index: 3; transform: rotate(-10deg); }
+        .giraffe .spots { position: absolute; width: 100%; height: 100%; background-image: radial-gradient(#795548 20%, transparent 20%); background-size: 15px 15px; opacity: 0.6; }
+
+        .fish .body { width: 60px; height: 35px; background: #FF9800; border-radius: 50%; position: absolute; top: 20px; left: 10px; overflow: hidden; }
+        .fish .stripe { position: absolute; width: 10px; height: 100%; background: white; top:0; }
+        .fish .tail-fin { width: 20px; height: 30px; background: #FF9800; position: absolute; top: 22px; left: -5px; clip-path: polygon(100% 50%, 0 0, 0 100%); }
+
+        /* --- Modals --- */
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
+            display: flex; justify-content: center; align-items: center; z-index: 2000;
+        }
+
+        .modal-card {
+            background: white; padding: 40px; border-radius: 30px;
+            text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+            max-width: 450px; animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            border: 8px solid #B3E5FC;
+        }
+
+        .btn {
+            background: #29B6F6; border: none; padding: 15px 60px; color: white;
+            font-family: inherit; font-weight: 700; font-size: 1.6rem;
+            border-radius: 50px; cursor: pointer; margin-top: 25px;
+            box-shadow: 0 6px 0 #0288D1; transition: transform 0.1s;
+        }
+        .btn:active { transform: translateY(6px); box-shadow: none; }
+
+        @keyframes floatCloud { from { transform: translateX(-150px); } to { transform: translateX(100vw); } }
+        @keyframes floatBubble { from { transform: translateY(0); opacity:1; } to { transform: translateY(-100px); opacity:0; } }
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; transform:scale(0.8); } 50% { opacity: 1; transform:scale(1.2); } }
+        @keyframes sway { from { transform: translateY(0); } to { transform: translateY(5px); } }
+        @keyframes wave { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+        @keyframes blink { 0%, 96% { transform: scaleY(1); } 98% { transform: scaleY(0.1); } }
+        @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="game-wrapper" :class="{ 'night-mode': isNight }">
+
+        <div class="sky-layer-bg bg-day"></div>
+        <div class="sky-layer-bg bg-night"></div>
+
+        <div class="celestial-container">
+            <div class="sun"></div>
+            <div class="moon"><div class="crater" style="width:15px; height:15px; top:20px; left:15px;"></div><div class="crater" style="width:25px; height:25px; top:40px; left:40px;"></div></div>
+            
+            <div class="cloud" style="width: 140px; height: 70px; top: 10%; left: 10%;"></div>
+            <div class="cloud" style="width: 100px; height: 50px; top: 20%; left: 50%; animation-delay: -20s;"></div>
+            <div class="cloud" style="width: 180px; height: 90px; top: 5%; left: 80%; animation-delay: -10s;"></div>
+            
+            <div v-for="n in 50" class="star" :style="{ top: Math.random()*80+'%', left: Math.random()*100+'%', width: Math.random()*4+2+'px', height: Math.random()*4+2+'px', animationDelay: Math.random()*2+'s' }"></div>
+        </div>
+
+        <div class="hud">
+            <div class="hud-content">
+                <div class="badge">⭐ {{ score }}</div>
+                <div class="badge">{{ isNight ? '🌙 Night' : '☀️ Day' }} • Level {{ currentLevelIndex + 1 }}</div>
+            </div>
+            <button class="btn-circle" @click="toggleMute">{{ isMuted ? '🔇' : '🎵' }}</button>
+        </div>
+
+        <div class="game-area">
+            <div v-for="habitat in currentLevel.habitats" :key="habitat.id" class="habitat-zone" :class="'h-' + habitat.id" :ref="el => { if(el) habitatRefs[habitat.id] = el }">
+                <div class="habitat-label">{{ habitat.name }}</div>
+                
+                <div class="scenery-back">
+                     <div v-if="habitat.id === 'polar'">
+                         <div class="mountain-ice" style="left: -50px;"></div>
+                         <div class="mountain-ice" style="right: -20px; transform: scale(0.8);"></div>
+                     </div>
+                     <div v-if="habitat.id === 'forest'">
+                         <div class="tree-wrapper" style="left:10%; bottom:0; opacity:0.5; transform:scale(0.6)">
+                             <div class="t-trunk"></div><div class="t-foliage"></div>
+                         </div>
+                         <div class="tree-wrapper" style="right:20%; bottom:0; opacity:0.5; transform:scale(0.8)">
+                             <div class="t-trunk"></div><div class="t-foliage"></div>
+                         </div>
+                     </div>
+                </div>
+
+                <div class="ground-floor">
+                    <div v-if="habitat.id === 'forest'">
+                        <div class="tree-wrapper" style="left: 10%; bottom: 30px; z-index: 5;">
+                            <div class="t-trunk"></div>
+                            <div class="t-foliage"></div>
+                        </div>
+                        <div class="tree-wrapper" style="left: 35%; bottom: 10px; transform: scale(0.7); z-index: 3;">
+                            <div class="t-trunk"></div>
+                            <div class="t-foliage"></div>
+                        </div>
+                        <div class="tree-wrapper" style="right: 15%; bottom: 40px; transform: scale(1.3); z-index: 6;">
+                            <div class="t-trunk"></div>
+                            <div class="t-foliage"></div>
+                        </div>
+                    </div>
+
+                    <div v-if="habitat.id === 'polar'">
+                        <div class="ice-sheet" style="left:0; bottom:20px;"></div>
+                        <div class="ice-sheet" style="right:0; bottom:5px; height:60px; width:60%;"></div>
+                    </div>
+
+                    <div v-if="habitat.id === 'savanna'">
+                        <div class="acacia-trunk" style="left: 10%; bottom:15px; transform:scale(0.7);"><div class="acacia-leaf"></div></div>
+                        <div class="acacia-trunk" style="left: 25%; bottom:35px;"><div class="acacia-leaf"></div></div>
+                        <div class="acacia-trunk" style="left: 45%; bottom:20px; transform:scale(0.8);"><div class="acacia-leaf" style="background:#558B2F; width:80px; left:-35px;"></div></div>
+                        <div class="acacia-trunk" style="right: 20%; bottom:40px; height:100px; width:10px;"><div class="acacia-leaf" style="width:70px; left:-30px;"></div></div>
+                        <div class="grass-tuft" style="left:50%; bottom:10px;"></div>
+                        <div class="grass-tuft" style="left:55%; bottom:5px;"></div>
+                    </div>
+
+                    <div v-if="habitat.id === 'ocean'">
+                        <div class="ocean-surface"></div>
+                        <div class="sand-bed"></div>
+                        <div class="kelp" style="left: 20%; bottom: 20px;"></div>
+                        <div class="kelp" style="left: 25%; bottom: 10px; height: 100px; animation-delay: 1s;"></div>
+                        <div class="kelp" style="right: 20%; bottom: 15px; height: 60px;"></div>
+                        <div class="bubble" style="bottom:20px; left:40%; width:10px; height:10px;"></div>
+                        <div class="bubble" style="bottom:40px; left:60%; width:15px; height:15px; animation-delay: 2s;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-for="(animal, index) in animals" :key="animal.id" class="animal-container" :class="{ [animal.type]: true, 'walking': animal.solved }" :style="{ left: animal.x + 'px', top: animal.y + 'px' }" :ref="el => { if(el) animalRefs[index] = el }">
+            <div class="inner">
+                <div v-if="animal.type === 'lion'" class="lion"><div class="mane"></div><div class="face"><div class="eyes"><div class="eye-bg"><div class="eye"></div></div><div class="eye-bg"><div class="eye"></div></div></div><div class="nose"></div></div></div>
+                <div v-if="animal.type === 'bear'" class="bear"><div class="ear-l"></div><div class="ear-r"></div><div class="head"><div class="eyes" style="top:35%"><div class="eye-bg"><div class="eye"></div></div><div class="eye-bg"><div class="eye"></div></div></div><div class="snout"></div></div></div>
+                <div v-if="animal.type === 'penguin'" class="penguin"><div class="body"></div><div class="belly"></div><div class="beak"></div><div class="eyes" style="top:15px; width:40px; left:20px;"><div class="eye-bg"><div class="eye"></div></div><div class="eye-bg"><div class="eye"></div></div></div></div>
+                <div v-if="animal.type === 'turtle'" class="turtle"><div class="leg" style="left:15px"></div><div class="leg" style="right:15px"></div><div class="shell"></div><div class="head"><div class="eyes" style="top:8px"><div class="eye" style="background:white"></div></div></div></div>
+                <div v-if="animal.type === 'octopus'" class="octopus"><div class="tentacles"><div class="tentacle"></div><div class="tentacle" style="animation-delay:0.2s"></div><div class="tentacle"></div><div class="tentacle" style="animation-delay:0.4s"></div></div><div class="head"><div class="eyes"><div class="eye-bg"><div class="eye"></div></div><div class="eye-bg"><div class="eye"></div></div></div></div></div>
+                <div v-if="animal.type === 'fox'" class="fox"><div class="tail"><div class="tail-tip"></div></div><div class="body"></div><div class="chest"></div><div class="head"><div class="eyes" style="top:12px; justify-content:flex-end; padding-right:5px;"><div class="eye-bg"><div class="eye"></div></div><div class="eye-bg"><div class="eye"></div></div></div></div></div>
+                <div v-if="animal.type === 'elephant'" class="elephant"><div class="body"></div><div class="ear"></div><div class="head"><div class="trunk"></div><div class="eyes" style="justify-content:flex-start; padding-left:10px;"><div class="eye-bg"><div class="eye"></div></div></div></div></div>
+                <div v-if="animal.type === 'walrus'" class="walrus"><div class="body"></div><div class="head"><div class="tusk" style="left:10px; transform:rotate(10deg)"></div><div class="tusk" style="right:10px; transform:rotate(-10deg)"></div><div class="eyes" style="top:10px"><div class="eye-bg"><div class="eye"></div></div><div class="eye-bg"><div class="eye"></div></div></div></div></div>
+                <div v-if="animal.type === 'crab'" class="crab"><div class="legs"><div class="leg-stick" style="transform:rotate(-20deg);"></div><div class="leg-stick" style="transform:rotate(20deg);"></div></div><div class="body"></div><div class="claw" style="left:0"></div><div class="claw" style="right:0"></div><div class="eyes" style="top:15px"><div class="eye" style="background:black"></div><div class="eye" style="background:black"></div></div></div>
+                <div v-if="animal.type === 'zebra'" class="zebra"><div class="body"></div><div class="mane-strip"></div><div class="head"><div class="eyes" style="top:10px; left:-5px;"><div class="eye-bg"><div class="eye"></div></div></div></div></div>
+                <div v-if="animal.type === 'giraffe'" class="giraffe"><div class="body"><div class="spots"></div></div><div class="neck"><div class="spots"></div></div><div class="head"><div class="eyes" style="top:8px; left:-2px; transform:rotate(10deg)"><div class="eye-bg" style="padding:1px;"><div class="eye" style="width:4px; height:4px;"></div></div></div></div></div>
+                <div v-if="animal.type === 'fish'" class="fish"><div class="tail-fin"></div><div class="body"><div class="stripe" style="left:15px"></div><div class="stripe" style="left:35px"></div><div class="eyes" style="top:8px; left:35px; width:auto;"><div class="eye-bg" style="padding:1px;"><div class="eye" style="width:4px;height:4px;"></div></div></div></div></div>
+            </div>
+        </div>
+
+        <div v-if="gameState === 'intro'" class="modal-overlay">
+            <div class="modal-card">
+                <h1 style="color:#0288D1; margin-bottom:5px;">Habitat Hero Final</h1>
+                <p style="color:#78909C; font-size:1.2rem;">Drag animals to their correct homes!</p>
+                <div style="font-size:4rem; margin:20px;">🦁 🦓 🦒 🐠</div>
+                <button class="btn" @click="startGame">Start Game</button>
+            </div>
+        </div>
+        <div v-if="gameState === 'won'" class="modal-overlay"><div class="modal-card"><h1 style="color:#FFA726;">Nice Job!</h1><p style="color:#78909C;">All animals are safe and happy.</p><button class="btn" @click="nextLevel">Next Level ➜</button></div></div>
+        <div v-if="gameState === 'finished'" class="modal-overlay"><div class="modal-card"><h1 style="color:#66BB6A;">🏆 You Won!</h1><p style="color:#78909C;">You are a true nature expert.</p><button class="btn" @click="resetGame">Play Again ↺</button></div></div>
+    
+    </div> </div>
+
+<script>
+    const { createApp, ref, computed, nextTick } = Vue;
+
+    createApp({
+        setup() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const isMuted = ref(false);
+            let musicInterval = null;
+            let noteIndex = 0;
+
+            const toggleMute = () => {
+                isMuted.value = !isMuted.value;
+                if(isMuted.value) { if(audioCtx.state === 'running') audioCtx.suspend(); } 
+                else { if(audioCtx.state === 'suspended') audioCtx.resume(); }
+            };
+
+            const playSound = (type) => {
+                if (isMuted.value) return; // FIXED: Direct return ensures silence
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+                if (type === 'pop') {
+                    osc.frequency.setValueAtTime(500, now); osc.frequency.exponentialRampToValueAtTime(1000, now + 0.1);
+                    gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    osc.start(now); osc.stop(now + 0.1);
+                } else if (type === 'success') {
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.linearRampToValueAtTime(800, now + 0.1); osc.frequency.linearRampToValueAtTime(1200, now + 0.2);
+                    gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now + 0.5);
+                    osc.start(now); osc.stop(now + 0.5);
+                }
+            };
+
+            const playMusicNote = () => {
+                if (isMuted.value) return; // FIXED: Direct return ensures silence
+                const notes = [392.00, 329.63, 392.00, 329.63, 440.00, 392.00];
+                const note = notes[noteIndex % notes.length];
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.type = 'sine'; osc.connect(gain); gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+                osc.frequency.setValueAtTime(note, now); gain.gain.setValueAtTime(0.03, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+                osc.start(now); osc.stop(now + 1.5); noteIndex++;
+            };
+
+            const startMusic = () => {
+                if(musicInterval) clearInterval(musicInterval);
+                musicInterval = setInterval(playMusicNote, 3000);
+            };
+
+            const gameState = ref('intro');
+            const score = ref(0);
+            const currentLevelIndex = ref(0);
+            const animals = ref([]);
+            const habitatRefs = ref({});
+            const animalRefs = ref({});
+            const isNight = computed(() => currentLevelIndex.value >= 2);
+
+            // --- RANDOMIZATION SYSTEM ---
+            const allAnimals = [
+                { type: 'bear', habitat: 'forest' },
+                { type: 'fox', habitat: 'forest' },
+                { type: 'octopus', habitat: 'ocean' },
+                { type: 'crab', habitat: 'ocean' },
+                { type: 'fish', habitat: 'ocean' },
+                { type: 'lion', habitat: 'savanna' },
+                { type: 'elephant', habitat: 'savanna' },
+                { type: 'zebra', habitat: 'savanna' },
+                { type: 'giraffe', habitat: 'savanna' },
+                { type: 'penguin', habitat: 'polar' },
+                { type: 'walrus', habitat: 'polar' },
+                { type: 'turtle', habitat: 'ocean' } // Also ocean for this game logic
+            ];
+
+            const levels = [
+                { habitats: [{ id: 'forest', name: 'Forest' }, { id: 'ocean', name: 'Ocean' }] },
+                { habitats: [{ id: 'savanna', name: 'Savanna' }, { id: 'polar', name: 'Polar' }] },
+                { habitats: [{ id: 'forest', name: 'Forest' }, { id: 'savanna', name: 'Savanna' }] },
+                { habitats: [{ id: 'polar', name: 'Polar' }, { id: 'ocean', name: 'Ocean' }, { id: 'savanna', name: 'Savanna' }] }
+            ];
+
+            const currentLevel = computed(() => levels[currentLevelIndex.value]);
+
+            const spawnAnimals = () => {
+                animals.value = [];
+                setTimeout(() => {
+                    const width = window.innerWidth - 100;
+                    
+                    // 1. Get habitats for this level
+                    const activeHabitats = currentLevel.value.habitats.map(h => h.id);
+                    
+                    // 2. Filter available animals
+                    let validAnimals = allAnimals.filter(a => activeHabitats.includes(a.habitat));
+                    
+                    // 3. Shuffle (Fisher-Yates)
+                    for (let i = validAnimals.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [validAnimals[i], validAnimals[j]] = [validAnimals[j], validAnimals[i]];
+                    }
+
+                    // 4. Pick Top 5-6 animals
+                    const pickedAnimals = validAnimals.slice(0, 5 + currentLevelIndex.value); // Increases slightly per level
+
+                    pickedAnimals.forEach((data, i) => {
+                        animals.value.push({
+                            id: Date.now() + i, type: data.type, target: data.habitat,
+                            x: 50 + Math.random() * width, y: 50 + Math.random() * 150, solved: false
+                        });
+                    });
+                    nextTick(() => { initDraggables(); startIdleAnim(); });
+                }, 50);
+            };
+
+            const startGame = () => {
+                if(audioCtx.state === 'suspended' && !isMuted.value) audioCtx.resume();
+                gameState.value = 'playing'; startMusic(); spawnAnimals();
+            };
+
+            const nextLevel = () => {
+                if(currentLevelIndex.value < levels.length - 1) {
+                    currentLevelIndex.value++; gameState.value = 'playing'; spawnAnimals();
+                } else { gameState.value = 'finished'; }
+            };
+
+            const resetGame = () => {
+                score.value = 0; currentLevelIndex.value = 0; gameState.value = 'intro'; startMusic();
+            };
+
+            let draggables = [];
+            const initDraggables = () => {
+                draggables.forEach(d => d.kill()); draggables = [];
+                animals.value.forEach((animal, index) => {
+                    if(animal.solved) return;
+                    const el = animalRefs.value[index]; if(!el) return;
+                    draggables.push(Draggable.create(el, {
+                        type: "x,y", edgeResistance: 0.65, bounds: "#app", inertia: true,
+                        onPress: function() { playSound('pop'); gsap.to(this.target, { scale: 1.2, duration: 0.2, ease: "back.out" }); },
+                        onRelease: function() { gsap.to(this.target, { scale: 1, duration: 0.2 }); checkDrop(this, animal, index); }
+                    })[0]);
+                });
+            };
+
+            const checkDrop = (draggable, animalData, index) => {
+                const rect = draggable.target.getBoundingClientRect();
+                const center = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+                const totalHabitats = currentLevel.value.habitats.length;
+                const colWidth = window.innerWidth / totalHabitats;
+                const colIndex = Math.floor(center.x / colWidth);
+                const targetHabitatDef = currentLevel.value.habitats[colIndex];
+                const inZone = center.y > window.innerHeight * 0.4; 
+
+                if (inZone && targetHabitatDef && targetHabitatDef.id === animalData.target) {
+                    playSound('success'); animalData.solved = true; draggable.disable(); score.value += 100;
+                    const habitatEl = habitatRefs.value[animalData.target];
+                    const hRect = habitatEl.getBoundingClientRect();
+                    const groundY = window.innerHeight - (window.innerHeight * 0.15) - 80;
+                    let safeX = center.x;
+                    if(safeX < hRect.left + 50) safeX = hRect.left + 50;
+                    if(safeX > hRect.right - 50) safeX = hRect.right - 50;
+                    const initialLeft = parseFloat(draggable.target.style.left) || 0;
+                    const initialTop = parseFloat(draggable.target.style.top) || 0;
+                    gsap.to(draggable.target, {
+                        x: safeX - initialLeft, y: groundY - initialTop, duration: 0.6, ease: "bounce.out",
+                        onComplete: () => { startRoaming(draggable.target, hRect.left, hRect.right, initialLeft); checkWin(); }
+                    });
+                } else { gsap.to(draggable.target, { x: 0, y: 0, duration: 0.5, ease: "back.out(1.5)" }); }
+            };
+
+            const startRoaming = (el, minX, maxX, initialLeft) => {
+                const walk = () => {
+                    if(gameState.value !== 'playing') return;
+                    const currentX = gsap.getProperty(el, "x");
+                    const targetScreenX = minX + 50 + Math.random() * (maxX - minX - 100);
+                    const targetRelativeX = targetScreenX - initialLeft;
+                    const dist = Math.abs(targetRelativeX - currentX);
+                    const duration = 2 + (dist / 100); 
+                    const scaleX = targetRelativeX > currentX ? -1 : 1;
+                    gsap.to(el.querySelector('.inner'), { scaleX: scaleX, duration: 0.3 });
+                    gsap.to(el, { y: "-=10", duration: 0.15, yoyo:true, repeat:3 });
+                    gsap.to(el, { x: targetRelativeX, duration: duration, ease: "sine.inOut", onComplete: () => { gsap.delayedCall(1 + Math.random() * 3, walk); } });
+                }; walk();
+            };
+
+            const checkWin = () => { if(animals.value.every(a => a.solved)) { setTimeout(() => gameState.value = 'won', 1500); } };
+            const startIdleAnim = () => {
+                animals.value.forEach((a, i) => {
+                    if(a.solved) return; const el = animalRefs.value[i];
+                    if(el) { gsap.to(el, { y: `+=15`, rotation: "random(-5,5)", duration: 2, yoyo: true, repeat: -1, ease: "sine.inOut" }); }
+                });
+            };
+
+            return { score, gameState, currentLevel, currentLevelIndex, animals, habitatRefs, animalRefs, isNight, isMuted, startGame, nextLevel, resetGame, toggleMute };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
