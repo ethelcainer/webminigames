@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fraction Pizza Party 🍕</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* Animated Background */
+        .bg-animated {
+            background-color: #FFF5E1;
+            background-image: 
+                radial-gradient(#FFD700 3px, transparent 3px), 
+                radial-gradient(#FF6B6B 3px, transparent 3px);
+            background-size: 60px 60px;
+            background-position: 0 0, 30px 30px;
+            animation: moveBackground 20s linear infinite;
+        }
+
+        @keyframes moveBackground {
+            from { background-position: 0 0, 30px 30px; }
+            to { background-position: 60px 60px, 90px 90px; }
+        }
+
+        .font-display { font-family: 'Fredoka One', cursive; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+        ::-webkit-scrollbar-thumb { background: #FFCC00; border-radius: 4px; }
+
+        /* Glossy Button Effect */
+        .btn-glossy {
+            position: relative;
+            overflow: hidden;
+            border: none;
+            transition: transform 0.1s;
+        }
+        
+        /* The Shine */
+        .btn-glossy::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(255,255,255,0.1));
+            border-radius: 999px 999px 20px 20px;
+            pointer-events: none;
+        }
+
+        .btn-glossy:active {
+            transform: scale(0.95);
+        }
+
+        /* Dragging Styles */
+        .dragging-item {
+            cursor: grabbing;
+            z-index: 9999;
+            pointer-events: none;
+            filter: drop-shadow(0 15px 15px rgba(0,0,0,0.4));
+        }
+
+        .ingredient-card:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="h-screen w-screen bg-animated text-gray-800 select-none">
+
+    <div id="app" class="relative w-full h-full max-w-7xl mx-auto flex flex-col md:flex-row p-2 md:p-6 gap-4">
+
+        <div class="absolute top-4 left-4 z-50 flex gap-2">
+            <div class="bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-lg border-2 border-red-100 flex gap-1">
+                <span v-for="n in 3" :key="n" class="text-2xl transition-all duration-500" :class="n <= lives ? 'opacity-100 scale-100' : 'opacity-20 scale-75 grayscale'">
+                    ❤️
+                </span>
+            </div>
+        </div>
+
+        <div class="absolute top-4 right-4 z-50">
+            <button @click="toggleMute" class="btn-glossy bg-orange-400 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center border-b-4 border-orange-600 active:border-b-0 active:translate-y-1">
+                <svg v-if="!isMuted" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zm-4 0h-2.5l-5 5H2v7.5h4.5l5 5V3.23zm2.5 8.77c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                <svg v-else class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73 4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+            </button>
+        </div>
+
+        <div v-if="gameState !== 'playing'" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-md">
+            
+            <div v-if="gameState === 'start'" class="text-center">
+                <div class="animate-bounce mb-4 text-6xl">🍕</div>
+                <h1 class="font-display text-6xl md:text-8xl text-[#FF6B6B] mb-2 drop-shadow-lg leading-tight">
+                    Fraction<br><span class="text-[#FFA500]">Pizza Party</span>
+                </h1>
+                <p class="text-xl text-gray-500 mb-8 font-bold">You have 3 Lives. Watch the Timer!</p>
+                <button @click="startGame" class="btn-glossy px-12 py-6 bg-[#2ECC71] text-white font-display text-3xl rounded-full shadow-lg border-b-[6px] border-[#27ae60] active:border-b-0 active:translate-y-[6px] transition-all">
+                    START COOKING
+                </button>
+            </div>
+
+            <div v-if="gameState === 'gameover'" class="text-center">
+                <div class="mb-4 text-8xl">💔</div>
+                <h1 class="font-display text-6xl text-gray-700 mb-4">Oh no!</h1>
+                <p class="text-2xl text-gray-500 mb-2">The customers got hungry.</p>
+                <p class="text-xl text-[#FF6B6B] font-bold mb-8">Final Score: {{ score }}</p>
+                <button @click="startGame" class="btn-glossy px-10 py-5 bg-[#FF6B6B] text-white font-display text-2xl rounded-full shadow-lg border-b-[6px] border-[#c0392b] active:border-b-0 active:translate-y-[6px] transition-all">
+                    TRY AGAIN
+                </button>
+            </div>
+
+        </div>
+
+        <template v-else>
+            
+            <div class="md:w-80 w-full flex-shrink-0 flex flex-col h-[25vh] md:h-full">
+                <div class="bg-white rounded-3xl shadow-xl p-4 md:p-6 flex flex-col h-full relative overflow-hidden border-4 border-orange-100">
+                    <div class="absolute top-0 left-0 w-full h-3 bg-orange-200" style="background-image: radial-gradient(circle, transparent 60%, white 60%); background-size: 15px 15px; background-position: -7px 5px;"></div>
+                    
+                    <div class="mt-2 flex justify-between items-center">
+                        <span class="font-display text-xl text-gray-400">ORDER #{{ level }}</span>
+                        <div class="bg-yellow-100 px-3 py-1 rounded-full text-yellow-700 font-bold">⭐ {{ score }}</div>
+                    </div>
+
+                    <div class="w-full h-5 bg-gray-200 rounded-full mt-4 overflow-hidden border border-gray-300 relative shadow-inner">
+                        <div class="h-full transition-all duration-1000 ease-linear"
+                             :class="timerColor"
+                             :style="{ width: (timer / maxTime) * 100 + '%' }">
+                             <div class="absolute top-0 left-0 w-full h-[50%] bg-white/30"></div>
+                        </div>
+                    </div>
+                    <div class="text-center text-xs font-bold text-gray-400 mt-1">{{ timer }}s remaining</div>
+
+                    <div class="flex-1 overflow-y-auto mt-4 pr-1 custom-scrollbar">
+                        <div class="flex flex-col gap-2">
+                            <div v-for="(req, index) in currentOrder.requirements" :key="index" class="bg-gray-50 p-2 md:p-3 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="font-display text-3xl text-gray-700 w-10 text-center flex flex-col items-center justify-center leading-none">
+                                        <span class="border-b-2 border-gray-600 w-full block pb-0.5">{{ req.numerator }}</span>
+                                        <span class="pt-0.5">{{ currentOrder.denominator }}</span>
+                                    </div>
+                                    <div class="text-sm md:text-lg font-bold text-gray-500 leading-tight">
+                                        {{ req.type }}
+                                    </div>
+                                </div>
+                                <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-sm border border-gray-100" :style="{ backgroundColor: getToppingColor(req.type) + '30' }">
+                                    <svg viewBox="0 0 100 100" class="w-7 h-7">
+                                        <g v-html="getToppingPath(req.type)"></g>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col items-center justify-center relative min-h-[40vh]">
+                
+                <div class="relative w-[300px] h-[300px] md:w-[500px] md:h-[500px] transition-all duration-500">
+                    <svg viewBox="0 0 520 520" class="w-full h-full drop-shadow-2xl">
+                        <circle cx="260" cy="260" r="255" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="2" />
+                        <circle cx="260" cy="260" r="235" fill="#F3F4F6" stroke="#E5E7EB" stroke-width="1" />
+                    </svg>
+
+                    <svg class="absolute inset-0 w-full h-full p-[35px] md:p-[55px] box-border" viewBox="-100 -100 200 200">
+                        <g id="pizza-group">
+                            <g v-for="(slot, i) in currentOrder.denominator" :key="'base-'+i">
+                                <path :d="getSlicePath(i, currentOrder.denominator, 98)" fill="#E6A15C" stroke="#C28643" stroke-width="1" />
+                                <path :d="getSlicePath(i, currentOrder.denominator, 90)" fill="#FFEAA7" stroke="#FDCB6E" stroke-width="0.5" />
+                                <path :d="getSlicePath(i, currentOrder.denominator, 85)" fill="#FFD700" fill-opacity="0.1" />
+                            </g>
+
+                            <g v-for="(topping, i) in pizzaState" :key="'topping-'+i">
+                                <g v-if="topping" @click="removeSlice(i)" class="cursor-pointer hover:opacity-80 transition-opacity">
+                                    <clipPath :id="'clip-'+i">
+                                         <path :d="getSlicePath(i, currentOrder.denominator, 90)" />
+                                    </clipPath>
+                                    
+                                    <g :clip-path="'url(#clip-'+i+')'">
+                                        <g v-for="t in 6" :key="t" :transform="getRandomToppingTransform(i, t)">
+                                            <g v-html="getToppingPath(topping, true)" transform="scale(0.35) translate(-50, -50)"></g>
+                                        </g>
+                                    </g>
+                                </g>
+                            </g>
+
+                            <g v-for="(slot, i) in currentOrder.denominator" :key="'hlt-'+i">
+                                <path 
+                                    :d="getSlicePath(i, currentOrder.denominator, 98)" 
+                                    fill="white" 
+                                    :fill-opacity="activeSlice === i && isDragging ? 0.3 : 0" 
+                                    class="transition-all duration-150 pointer-events-none"
+                                />
+                            </g>
+
+                            <g class="pointer-events-none">
+                                <line v-for="i in currentOrder.denominator" :key="'line-'+i"
+                                    x1="0" y1="0"
+                                    :x2="Math.cos((i * 2 * Math.PI / currentOrder.denominator) - Math.PI/2) * 100" 
+                                    :y2="Math.sin((i * 2 * Math.PI / currentOrder.denominator) - Math.PI/2) * 100" 
+                                    stroke="rgba(0,0,0,0.15)" 
+                                    stroke-width="1.5"
+                                />
+                            </g>
+                        </g>
+                    </svg>
+
+                    <div 
+                        class="absolute inset-0 z-10 rounded-full" 
+                        @mousemove="handleDragHover" 
+                        @mouseup="handleDrop"
+                        @mouseleave="activeSlice = null"
+                        ref="dropZone"
+                    ></div>
+                </div>
+
+                <button @click="checkOrder" class="mt-4 md:mt-8 btn-glossy bg-[#2ECC71] text-white font-display text-xl md:text-2xl py-3 px-12 rounded-full shadow-lg border-b-[5px] border-[#219150] active:border-b-0 active:translate-y-[5px] flex items-center gap-3">
+                    <span>SERVE PIZZA!</span>
+                </button>
+            </div>
+
+            <div class="md:w-64 w-full h-[25vh] md:h-full flex flex-col z-20">
+                <div class="bg-white/90 backdrop-blur rounded-2xl p-4 shadow-lg border-2 border-orange-100 flex-1 flex flex-col overflow-hidden">
+                    <h3 class="font-display text-gray-400 text-center mb-2">TOPPINGS</h3>
+                    
+                    <div class="overflow-y-auto grid grid-cols-3 md:grid-cols-2 gap-3 p-1 custom-scrollbar">
+                        <div v-for="topping in toppings" :key="topping.name" 
+                             class="ingredient-card flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing group p-2 rounded-xl hover:bg-orange-50 transition-colors"
+                             @mousedown="(e) => startDrag(e, topping.name)"
+                             @touchstart="(e) => startDrag(e, topping.name)">
+                            
+                            <div class="w-14 h-14 md:w-16 md:h-16 rounded-xl bg-white border-2 border-gray-100 shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all flex items-center justify-center relative">
+                                <svg viewBox="0 0 100 100" class="w-10 h-10 md:w-12 md:h-12 drop-shadow-sm">
+                                    <g v-html="topping.svg"></g>
+                                </svg>
+                                <div class="absolute -bottom-2 -right-2 bg-orange-100 text-orange-600 text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-orange-200">
+                                    1/{{currentOrder.denominator}}
+                                </div>
+                            </div>
+                            <span class="font-bold text-gray-600 text-xs md:text-sm text-center leading-tight">{{ topping.name }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="dragState.active" 
+                 class="fixed pointer-events-none z-[9999]"
+                 :style="{ left: dragState.x + 'px', top: dragState.y + 'px', transform: 'translate(-50%, -50%)' }">
+                 <svg width="120" height="120" viewBox="0 0 100 100" class="drop-shadow-xl">
+                    <g v-html="getToppingPath(dragState.topping)" transform="scale(0.8) translate(10, 10)"></g>
+                 </svg>
+            </div>
+
+        </template>
+        
+        <transition enter-active-class="transition duration-300 ease-out" enter-from-class="scale-0 opacity-0" enter-to-class="scale-100 opacity-100" leave-active-class="transition duration-200 ease-in" leave-to-class="scale-0 opacity-0">
+            <div v-if="message" class="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+                <div class="bg-white border-4 border-[#FF6B6B] px-12 py-8 rounded-3xl shadow-2xl flex flex-col items-center text-center transform rotate-[-2deg]">
+                    <div class="text-7xl mb-2">{{ message.icon }}</div>
+                    <h2 class="font-display text-4xl text-[#FF6B6B]">{{ message.title }}</h2>
+                    <p class="text-xl text-gray-600 font-bold mt-2">{{ message.text }}</p>
+                </div>
+            </div>
+        </transition>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                // --- STATE ---
+                const gameState = ref('start'); // start, playing, gameover
+                const level = ref(1);
+                const score = ref(0);
+                const lives = ref(3);
+                const message = ref(null);
+                const isMuted = ref(false);
+                const isDragging = ref(false);
+                const activeSlice = ref(null);
+
+                // Timer
+                const maxTime = 30; // Changed to 30s
+                const timer = ref(maxTime);
+                let timerInterval = null;
+
+                // Audio
+                let audioCtx = null;
+                let nextNoteTime = 0;
+
+                // Better SVGs
+                const toppings = [
+                    { 
+                        name: 'Pepperoni', 
+                        color: '#D63031',
+                        svg: `<circle cx="50" cy="50" r="40" fill="#D63031" stroke="#B83227" stroke-width="2"/>
+                              <circle cx="50" cy="50" r="32" fill="none" stroke="#E17055" stroke-width="2" opacity="0.5"/>
+                              <circle cx="35" cy="40" r="4" fill="#A32626" opacity="0.4"/>
+                              <circle cx="65" cy="60" r="5" fill="#A32626" opacity="0.4"/>
+                              <circle cx="60" cy="35" r="3" fill="#A32626" opacity="0.4"/>`
+                    },
+                    { 
+                        name: 'Mushrooms', 
+                        color: '#A8A4A0',
+                        svg: `<path d="M50,20 Q85,20 85,55 C85,65 75,70 65,70 L65,90 Q65,95 60,95 L40,95 Q35,95 35,90 L35,70 C25,70 15,65 15,55 Q15,20 50,20" fill="#CEC9C5" stroke="#636E72" stroke-width="2"/>
+                              <path d="M35,70 L65,70" stroke="#636E72" stroke-width="2"/>`
+                    },
+                    { 
+                        name: 'Basil', 
+                        color: '#2ECC71',
+                        svg: `<path d="M50,95 Q20,60 10,40 Q0,20 20,10 Q40,0 50,25 Q60,0 80,10 Q100,20 90,40 Q80,60 50,95" fill="#2ECC71" stroke="#27AE60" stroke-width="2"/>
+                              <path d="M50,25 Q50,60 50,95 M50,45 L30,35 M50,60 L70,50" fill="none" stroke="#27AE60" stroke-width="2"/>`
+                    },
+                    { 
+                        name: 'Olives', 
+                        color: '#2D3436',
+                        svg: `<circle cx="50" cy="50" r="35" fill="#2D3436" stroke="black" stroke-width="1"/>
+                              <circle cx="50" cy="50" r="15" fill="#FFF5E1" stroke="#636E72" stroke-width="1"/>
+                              <path d="M50,20 A5,5 0 0,1 55,25" stroke="white" stroke-width="2" opacity="0.3"/>`
+                    },
+                    { 
+                        name: 'Pineapple', 
+                        color: '#F1C40F',
+                        svg: `<rect x="20" y="20" width="60" height="60" rx="10" fill="#F1C40F" stroke="#F39C12" stroke-width="2"/>
+                              <line x1="20" y1="40" x2="80" y2="40" stroke="#F39C12" stroke-width="2"/>
+                              <line x1="20" y1="60" x2="80" y2="60" stroke="#F39C12" stroke-width="2"/>
+                              <line x1="40" y1="20" x2="40" y2="80" stroke="#F39C12" stroke-width="2"/>
+                              <line x1="60" y1="20" x2="60" y2="80" stroke="#F39C12" stroke-width="2"/>`
+                    },
+                    {
+                        name: 'Cheese',
+                        color: '#FFEAA7',
+                        svg: `<path d="M50,15 Q85,15 90,50 Q95,85 50,90 Q5,85 10,50 Q15,15 50,15" fill="#FFEAA7" stroke="#FDCB6E" stroke-width="2"/>
+                              <circle cx="35" cy="40" r="6" fill="#FDCB6E"/>
+                              <circle cx="65" cy="65" r="4" fill="#FDCB6E"/>`
+                    }
+                ];
+
+                const currentOrder = ref({ denominator: 2, requirements: [] });
+                const pizzaState = ref([]); 
+                const dragState = ref({ active: false, topping: null, x: 0, y: 0 });
+                const dropZone = ref(null);
+
+                // --- AUDIO ENGINE ---
+                
+                const initAudio = () => {
+                    if(!audioCtx) {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        audioCtx = new AudioContext();
+                    }
+                    if(audioCtx.state === 'suspended') {
+                        audioCtx.resume();
+                    }
+                };
+
+                const toggleMute = () => {
+                    isMuted.value = !isMuted.value;
+                    if(isMuted.value) {
+                        if(audioCtx) audioCtx.suspend();
+                    } else {
+                        initAudio();
+                    }
+                };
+
+                const playSound = (type) => {
+                    if (isMuted.value || !audioCtx) return;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    const now = audioCtx.currentTime;
+
+                    if (type === 'thud') {
+                        // Soft Thud: Low frequency, fast decay, no pitch rise
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(150, now); // Start low
+                        osc.frequency.exponentialRampToValueAtTime(50, now + 0.1); // Drop pitch
+                        gain.gain.setValueAtTime(0.5, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                        osc.start(now);
+                        osc.stop(now + 0.1);
+
+                    } else if (type === 'win') {
+                        [0, 0.1, 0.2].forEach((delay, i) => {
+                            const o = audioCtx.createOscillator();
+                            const g = audioCtx.createGain();
+                            o.connect(g);
+                            g.connect(audioCtx.destination);
+                            const freq = [523.25, 659.25, 783.99][i]; 
+                            o.frequency.value = freq;
+                            g.gain.setValueAtTime(0.1, now + delay);
+                            g.gain.exponentialRampToValueAtTime(0.01, now + delay + 0.5);
+                            o.start(now + delay);
+                            o.stop(now + delay + 0.5);
+                        });
+                    } else if (type === 'error') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(150, now);
+                        osc.frequency.linearRampToValueAtTime(50, now + 0.3);
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                        osc.start(now);
+                        osc.stop(now + 0.3);
+                    }
+                };
+
+                // Background Music Melody
+                const melody = [
+                    {f: 261.63, d: 0.5}, {f: 329.63, d: 0.5}, {f: 392.00, d: 0.5}, {f: 523.25, d: 1.0}, // C E G C
+                    {f: 392.00, d: 0.5}, {f: 329.63, d: 0.5}, {f: 261.63, d: 1.0}, // G E C
+                    {f: 293.66, d: 0.5}, {f: 349.23, d: 0.5}, {f: 440.00, d: 0.5}, {f: 293.66, d: 1.0}  // D F A D
+                ];
+                let noteIndex = 0;
+
+                const scheduleNote = () => {
+                    if(isMuted.value || !audioCtx || gameState.value !== 'playing') {
+                        requestAnimationFrame(scheduleNote);
+                        return;
+                    }
+                    
+                    const now = audioCtx.currentTime;
+                    // Lookahead scheduler
+                    if (now >= nextNoteTime) {
+                        const note = melody[noteIndex % melody.length];
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'triangle'; // Softer, flutey sound
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        
+                        osc.frequency.value = note.f;
+                        gain.gain.setValueAtTime(0.08, now); // Increased volume slightly
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + note.d);
+                        
+                        osc.start(now);
+                        osc.stop(now + note.d);
+                        
+                        nextNoteTime = now + note.d;
+                        noteIndex++;
+                    }
+                    requestAnimationFrame(scheduleNote);
+                };
+
+                // --- GAME LOGIC ---
+
+                const startTimer = () => {
+                    clearInterval(timerInterval);
+                    timer.value = maxTime;
+                    timerInterval = setInterval(() => {
+                        if(gameState.value !== 'playing') return;
+                        timer.value--;
+                        if(timer.value <= 0) {
+                            clearInterval(timerInterval);
+                            handleTimeout();
+                        }
+                    }, 1000);
+                };
+
+                const handleTimeout = () => {
+                    playSound('error');
+                    lives.value--; // Lose a life
+                    
+                    if(lives.value <= 0) {
+                        gameState.value = 'gameover';
+                        // Stop music logic or reset
+                    } else {
+                        message.value = { icon: '⏰', title: 'Time Up!', text: 'Lost a life! Try again!' };
+                        setTimeout(() => {
+                            message.value = null;
+                            generateOrder(); // Reset level
+                        }, 2000);
+                    }
+                };
+
+                const startGame = () => {
+                    initAudio(); // Trigger audio unlock
+                    nextNoteTime = audioCtx.currentTime;
+                    noteIndex = 0;
+                    
+                    gameState.value = 'playing';
+                    lives.value = 3;
+                    score.value = 0;
+                    level.value = 1;
+                    
+                    generateOrder();
+                    scheduleNote(); // Start music loop
+                };
+
+                const generateOrder = () => {
+                    const denoms = level.value < 3 ? [2, 4] : level.value < 6 ? [3, 4, 6] : [4, 6, 8];
+                    const denom = denoms[Math.floor(Math.random() * denoms.length)];
+                    pizzaState.value = new Array(denom).fill(null);
+                    
+                    const availableToppings = toppings.slice(0, 4).sort(() => 0.5 - Math.random());
+                    const orderToppings = availableToppings.slice(0, Math.floor(Math.random() * 2) + 1);
+                    
+                    let remaining = denom;
+                    let reqs = [];
+                    
+                    orderToppings.forEach((top, i) => {
+                        if (i === orderToppings.length - 1) {
+                            reqs.push({ type: top.name, numerator: remaining });
+                        } else {
+                            const count = Math.ceil(Math.random() * (remaining/2));
+                            remaining -= count;
+                            reqs.push({ type: top.name, numerator: count });
+                        }
+                    });
+                    
+                    currentOrder.value = { denominator: denom, requirements: reqs };
+                    startTimer();
+                };
+
+                // --- GEOMETRY ---
+                
+                const getSlicePath = (index, total, radius) => {
+                    const startAngle = (index * 2 * Math.PI) / total;
+                    const endAngle = ((index + 1) * 2 * Math.PI) / total;
+                    const x1 = Math.cos(startAngle - Math.PI/2) * radius;
+                    const y1 = Math.sin(startAngle - Math.PI/2) * radius;
+                    const x2 = Math.cos(endAngle - Math.PI/2) * radius;
+                    const y2 = Math.sin(endAngle - Math.PI/2) * radius;
+                    return `M 0 0 L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`;
+                };
+
+                const getToppingPath = (name, raw = false) => {
+                    const t = toppings.find(t => t.name === name);
+                    return t ? t.svg : '';
+                };
+                
+                const getToppingColor = (name) => toppings.find(t => t.name === name)?.color;
+
+                const getRandomToppingTransform = (sliceIdx, seed) => {
+                    const r = (sliceIdx * 13 + seed * 7) % 100; 
+                    const angleSize = (2 * Math.PI) / currentOrder.value.denominator;
+                    const baseAngle = (sliceIdx * angleSize) - (Math.PI/2);
+                    const dist = 30 + (r % 45); 
+                    const offset = (angleSize * 0.5) * ((r/100) - 0.5);
+                    const finalAngle = baseAngle + (angleSize/2) + offset;
+                    return `translate(${Math.cos(finalAngle)*dist}, ${Math.sin(finalAngle)*dist}) rotate(${r*3.6})`;
+                };
+
+                // --- INTERACTION ---
+
+                const startDrag = (e, toppingName) => {
+                    const evt = e.touches ? e.touches[0] : e;
+                    dragState.value = { active: true, topping: toppingName, x: evt.clientX, y: evt.clientY };
+                    isDragging.value = true;
+                    playSound('thud'); // Updated sound
+                };
+
+                const handleDragHover = (e) => {
+                    if (!dragState.value.active) return;
+                    const rect = dropZone.value.getBoundingClientRect();
+                    const cx = rect.left + rect.width/2;
+                    const cy = rect.top + rect.height/2;
+                    const evt = e.touches ? e.touches[0] : e;
+                    const x = evt ? evt.clientX : dragState.value.x;
+                    const y = evt ? evt.clientY : dragState.value.y;
+                    
+                    let angle = Math.atan2(y - cy, x - cx) + Math.PI/2;
+                    if(angle < 0) angle += 2*Math.PI;
+                    
+                    const idx = Math.floor(angle / ((2*Math.PI)/currentOrder.value.denominator));
+                    activeSlice.value = idx % currentOrder.value.denominator;
+                    dragState.value.x = x;
+                    dragState.value.y = y;
+                };
+
+                const handleDrop = () => {
+                    if(activeSlice.value !== null && dragState.value.active) {
+                        pizzaState.value[activeSlice.value] = dragState.value.topping;
+                        playSound('thud'); // Updated sound
+                        gsap.from("#pizza-group", { scale: 0.95, duration: 0.15, ease: "back.out(2)" });
+                    }
+                    dragState.value.active = false;
+                    isDragging.value = false;
+                    activeSlice.value = null;
+                };
+
+                const removeSlice = (idx) => {
+                    pizzaState.value[idx] = null;
+                    playSound('thud'); // Updated sound
+                };
+
+                window.addEventListener('mouseup', () => { dragState.value.active = false; isDragging.value = false; });
+                window.addEventListener('touchend', () => { dragState.value.active = false; isDragging.value = false; });
+                window.addEventListener('mousemove', (e) => { if(dragState.value.active) handleDragHover(e); });
+                window.addEventListener('touchmove', (e) => { if(dragState.value.active) handleDragHover(e); }, {passive:false});
+
+                // --- VALIDATION ---
+                const checkOrder = () => {
+                    const counts = {};
+                    pizzaState.value.forEach(t => { if(t) counts[t] = (counts[t]||0)+1; });
+                    
+                    let correct = true;
+                    if(pizzaState.value.includes(null)) correct = false;
+                    
+                    currentOrder.value.requirements.forEach(r => {
+                        if((counts[r.type]||0) !== r.numerator) correct = false;
+                    });
+
+                    if(correct) {
+                        score.value += 100 + Math.ceil(timer.value * 5); 
+                        level.value++;
+                        playSound('win');
+                        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#FF6B6B', '#FFD700', '#2ECC71'] });
+                        message.value = { icon: '🧑‍🍳', title: 'Delicious!', text: 'Order Complete!' };
+                        clearInterval(timerInterval);
+                        setTimeout(() => {
+                            message.value = null;
+                            generateOrder();
+                        }, 2500);
+                    } else {
+                        playSound('error');
+                        message.value = { icon: '📋', title: 'Order Wrong', text: 'Check the ticket again!' };
+                        gsap.to("#pizza-group", { x: -5, duration: 0.05, yoyo: true, repeat: 5 });
+                        setTimeout(() => message.value = null, 1500);
+                    }
+                };
+
+                return {
+                    gameState, level, score, lives, message, timer, maxTime, isMuted,
+                    toppings, currentOrder, pizzaState, dragState, dropZone, activeSlice, isDragging,
+                    startGame, toggleMute, startDrag, handleDragHover, handleDrop, removeSlice, checkOrder,
+                    getSlicePath, getToppingPath, getToppingColor, getRandomToppingTransform,
+                    timerColor: computed(() => timer.value < 10 ? 'bg-red-500' : 'bg-[#FF6B6B]')
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
