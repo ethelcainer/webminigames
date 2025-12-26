@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pip's Pulley Adventure! v10 - Final Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&family=Nunito:wght@400;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF9F1C;
+            --secondary: #2EC4B6;
+            --accent: #E71D36;
+            --bg: #CBF3F0;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: var(--bg);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .bubbly-font { font-family: 'Fredoka', sans-serif; }
+
+        .btn-chunky {
+            background: white;
+            border: 4px solid #333;
+            box-shadow: 0 6px 0 #333;
+            transition: all 0.1s;
+            border-radius: 20px;
+        }
+
+        .btn-chunky:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #333;
+        }
+
+        .panel-chunky {
+            background: white;
+            border: 4px solid #333;
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.1);
+            border-radius: 24px;
+        }
+
+        .goal-bubble {
+            background: #FFF;
+            border: 3px solid var(--secondary);
+            border-radius: 15px;
+            position: relative;
+        }
+        .goal-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 10px 10px 0;
+            border-style: solid;
+            border-color: var(--secondary) transparent;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="intro-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-[#FFBF69] p-4">
+        <div class="panel-chunky max-w-lg w-full p-8 text-center bg-white relative">
+            <div id="step-1">
+                <div class="w-32 h-32 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg viewBox="0 0 100 100" class="w-20 h-20">
+                        <circle cx="50" cy="40" r="25" fill="none" stroke="#333" stroke-width="4"/>
+                        <circle cx="50" cy="40" r="5" fill="#333"/>
+                        <path d="M 25 40 L 25 80 M 75 40 L 75 70" stroke="#8B4513" stroke-width="3" stroke-dasharray="4"/>
+                    </svg>
+                </div>
+                <h1 class="text-4xl bubbly-font text-orange-500 mb-4">Meet the Pulley!</h1>
+                <p class="text-xl text-gray-700 mb-8">A pulley is a <b>simple machine</b>. It uses a wheel and a rope to lift heavy things easily!</p>
+                <button onclick="nextStep(2)" class="btn-chunky px-8 py-3 text-2xl bubbly-font text-orange-500 flex items-center gap-2 mx-auto">
+                    Next! 
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+            </div>
+
+            <div id="step-2" class="hidden">
+                <h1 class="text-4xl bubbly-font text-blue-500 mb-4">Help Pip!</h1>
+                <p class="text-xl text-gray-700 mb-6">You are Pip's assistant. Help him pull the rope to lift forest treasures through 5 challenges!</p>
+                <div class="bg-yellow-50 p-4 rounded-xl border-2 border-dashed border-yellow-400 mb-8 text-left">
+                    <p class="font-bold text-orange-600 uppercase">Mission:</p>
+                    <ul class="list-disc ml-5 text-gray-600">
+                        <li>Fixed pulleys change the direction of force!</li>
+                        <li>Double pulleys make lifting 2x easier!</li>
+                    </ul>
+                </div>
+                <button onclick="startGame()" class="btn-chunky px-12 py-4 text-3xl bubbly-font text-green-500">START ADVENTURE</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-container" class="relative h-screen w-full overflow-hidden transition-all duration-1000">
+        
+        <svg class="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 600">
+            <path id="hill-back" d="M0 600 L0 450 Q 200 400 400 450 T 800 420 T 1200 480 L 1200 600 Z" fill="#7CB342" opacity="0.6"/>
+            <path id="hill-front" d="M0 600 L0 500 Q 300 450 600 520 T 1200 480 L 1200 600 Z" fill="#558B2F" opacity="0.5"/>
+        </svg>
+
+        <div id="cloud-layer" class="absolute inset-0 pointer-events-none">
+            <svg class="cloud absolute top-10 w-32 opacity-70" viewBox="0 0 100 60"><path d="M10 40 q0 -20 20 -20 q10 -15 30 -5 q20 -10 30 10 q10 5 0 15 z" fill="white"/></svg>
+            <svg class="cloud absolute top-32 w-40 opacity-60" viewBox="0 0 100 60"><path d="M10 40 q0 -20 20 -20 q10 -15 30 -5 q20 -10 30 10 q10 5 0 15 z" fill="white"/></svg>
+            <svg class="cloud absolute top-5 w-24 opacity-70" viewBox="0 0 100 60"><path d="M10 40 q0 -20 20 -20 q10 -15 30 -5 q20 -10 30 10 q10 5 0 15 z" fill="white"/></svg>
+        </div>
+
+        <div class="absolute right-0 bottom-0 w-2/3 md:w-1/2 h-full z-10 pointer-events-none">
+            <svg class="w-full h-full" preserveAspectRatio="xMidYMax meet" viewBox="0 0 300 800">
+                <path d="M 200 800 L 180 200 Q 180 150 140 150" stroke="#5D4037" stroke-width="30" fill="none" stroke-linecap="round" />
+                <g fill="#2D6A4F">
+                    <circle cx="140" cy="150" r="110" />
+                    <circle cx="80" cy="200" r="90" />
+                    <circle cx="200" cy="180" r="80" />
+                    <circle cx="240" cy="230" r="70" />
+                    <circle cx="50" cy="250" r="60" />
+                </g>
+                <rect x="50" y="280" width="180" height="12" fill="#3E2723" rx="4" />
+                <rect x="60" y="270" width="160" height="5" fill="#5D4037" rx="2" />
+            </svg>
+        </div>
+
+        <div class="absolute top-6 left-6 flex flex-col gap-4 z-50">
+            <div class="flex gap-4">
+                <div class="panel-chunky px-4 py-2 bg-white flex items-center gap-2">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF9F1C" stroke="#333" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                    <div>
+                        <span class="text-gray-400 text-xs font-bold block uppercase">Level</span>
+                        <span id="lvl-display" class="text-lg bubbly-font leading-none">1 / 5</span>
+                    </div>
+                </div>
+                <div class="panel-chunky px-4 py-2 bg-white flex items-center gap-2">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#8D6E63" stroke="#333" stroke-width="1.5"><circle cx="12" cy="12" r="9"></circle><path d="M12 3a9 9 0 0 0-9 9"></path></svg>
+                    <div>
+                        <span class="text-gray-400 text-xs font-bold block uppercase">Score</span>
+                        <span id="score" class="text-2xl bubbly-font text-orange-500 leading-none">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute top-6 left-1/2 -translate-x-1/2 z-50 text-center pointer-events-none">
+            <div class="goal-bubble px-6 py-2 shadow-sm">
+                <p id="level-goal" class="text-blue-600 font-bold bubbly-font text-lg">Quest: Pull Pip's hand to lift the cargo!</p>
+            </div>
+        </div>
+
+        <svg id="machine-svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 w-full h-full z-20">
+            <defs>
+                <filter id="shadow">
+                    <feDropShadow dx="2" dy="2" stdDeviation="1" flood-opacity="0.2"/>
+                </filter>
+            </defs>
+
+            <circle id="rope-anchor" cx="585" cy="150" r="4" fill="#333" opacity="0" />
+            <path id="main-rope" d="M 565 320 L 565 150 A 35 35 0 0 1 635 150 L 635 540" fill="none" stroke="#D7CCC8" stroke-width="6" stroke-linecap="round" filter="url(#shadow)"/>
+
+            <g id="pulley-corner" transform="translate(565, 320)" opacity="0">
+                 <circle r="20" fill="#90A4AE" stroke="#333" stroke-width="2" />
+                 <line x1="-15" y1="0" x2="15" y2="0" stroke="#333" stroke-width="2" />
+                 <line x1="0" y1="-15" x2="0" y2="15" stroke="#333" stroke-width="2" />
+            </g>
+
+            <rect x="596" y="0" width="8" height="150" fill="#3E2723" />
+            <g id="pulley-wheel-group" transform="translate(600, 150)">
+                <circle r="35" fill="#90A4AE" stroke="#333" stroke-width="3" />
+                <circle r="28" fill="none" stroke="#CFD8DC" stroke-width="2" />
+                <g id="spokes">
+                    <line x1="-30" y1="0" x2="30" y2="0" stroke="#333" stroke-width="4" />
+                    <line x1="0" y1="-30" x2="0" y2="30" stroke="#333" stroke-width="4" />
+                </g>
+                <circle r="7" fill="#333" />
+            </g>
+
+            <g id="pulley2-group" opacity="0">
+                <circle r="25" fill="#90A4AE" stroke="#333" stroke-width="3" />
+                <circle r="20" fill="none" stroke="#CFD8DC" stroke-width="2" />
+                <g id="spokes2">
+                    <line x1="-20" y1="0" x2="20" y2="0" stroke="#333" stroke-width="3" />
+                    <line x1="0" y1="-20" x2="0" y2="20" stroke="#333" stroke-width="3" />
+                </g>
+                <circle r="5" fill="#333" />
+            </g>
+
+            <g id="pip-container">
+                <ellipse cx="0" cy="0" rx="22" ry="32" fill="#A67C52" stroke="#333" stroke-width="2" />
+                <path d="M -18 10 Q -45 -20 -18 -35" fill="none" stroke="#8D6E63" stroke-width="10" stroke-linecap="round" />
+                <circle cy="-32" r="18" fill="#A67C52" stroke="#333" stroke-width="2" />
+                <path d="M -12 -45 L -8 -60 L -3 -45" fill="#A67C52" stroke="#333" stroke-width="2" />
+                <path d="M 12 -45 L 8 -60 L 3 -45" fill="#A67C52" stroke="#333" stroke-width="2" />
+                <circle cx="-6" cy="-36" r="2.5" fill="black" />
+                <circle cx="6" cy="-36" r="2.5" fill="black" />
+                <circle id="hand-l" cx="45" cy="-220" r="10" fill="#D7CCC8" stroke="#333" stroke-width="2" />
+            </g>
+
+            <g id="basket-load">
+                <path d="M -18 0 Q 0 -30 18 0" fill="none" stroke="#5D4037" stroke-width="3" stroke-linecap="round"/>
+                <path d="M -22 0 L 22 0 L 18 28 L -18 28 Z" fill="#8D6E63" stroke="#333" stroke-width="2" />
+                <g id="basket-items"></g>
+            </g>
+
+            <circle id="drag-zone" cx="565" cy="320" r="80" fill="transparent" class="cursor-pointer cursor-grab active:cursor-grabbing" />
+        </svg>
+
+        <div class="absolute bottom-0 w-full h-16 bg-[#55a630] border-t-4 border-[#38661D] z-30 flex items-end justify-around overflow-hidden">
+             <svg class="w-12 h-8 text-[#38661D] mb-1" viewBox="0 0 50 30" fill="currentColor"><path d="M0 30 Q 5 0 10 30 Q 15 10 20 30 Q 25 5 30 30 Q 35 15 40 30 Q 45 5 50 30 Z"/></svg>
+             <svg class="w-16 h-10 text-[#438a26] mb-2" viewBox="0 0 50 30" fill="currentColor"><path d="M0 30 Q 15 0 30 30 Q 40 10 50 30 Z"/></svg>
+             <svg class="w-10 h-6 text-[#38661D] mb-1" viewBox="0 0 50 30" fill="currentColor"><path d="M0 30 Q 5 0 10 30 Q 25 5 30 30 Q 45 5 50 30 Z"/></svg>
+             <svg class="w-14 h-9 text-[#438a26] mb-3" viewBox="0 0 50 30" fill="currentColor"><path d="M0 30 Q 20 5 40 30 Q 45 15 50 30 Z"/></svg>
+        </div>
+    </div>
+
+    <div id="win-screen" class="fixed inset-0 z-[110] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="panel-chunky p-8 bg-white text-center scale-0 max-w-md" id="win-card">
+            <div id="win-icon" class="w-20 h-20 bg-yellow-400 rounded-full mx-auto mb-4 flex items-center justify-center border-4 border-[#333]">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="white" stroke="#333" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            </div>
+            <h2 id="win-title" class="text-4xl bubbly-font text-green-500 mb-2">Level Clear!</h2>
+            <p id="win-desc" class="text-lg text-gray-600 mb-6 leading-tight">Great job! You lifted the cargo to the treehouse!</p>
+            <button id="next-btn" onclick="nextLevel()" class="btn-chunky px-8 py-3 text-xl bubbly-font text-blue-500 flex items-center gap-2 mx-auto">
+                Next Challenge!
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+        </div>
+    </div>
+
+    <div id="final-screen" class="fixed inset-0 z-[120] hidden items-center justify-center bg-[#FFBF69] p-4">
+        <div class="panel-chunky max-w-lg w-full p-8 text-center bg-white relative">
+            <div class="w-32 h-32 mx-auto mb-4 bg-yellow-100 rounded-full flex items-center justify-center border-4 border-yellow-400">
+               <svg viewBox="0 0 24 24" fill="none" stroke="#FF9F1C" stroke-width="3" class="w-20 h-20">
+                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                   <polyline points="22 4 12 14.01 9 11.01"></polyline>
+               </svg>
+            </div>
+            <h1 class="text-5xl bubbly-font text-orange-500 mb-2">ADVENTURE COMPLETE!</h1>
+            <p class="text-xl text-gray-600 mb-6">You are now a <b>Pulley Expert</b> (Pakar Takal)!</p>
+            
+            <div class="bg-blue-50 p-6 rounded-2xl border-4 border-dashed border-blue-400 mb-8">
+                <p class="text-lg bubbly-font text-blue-600 uppercase tracking-widest">Final Score:</p>
+                <p id="final-score-val" class="text-7xl bubbly-font text-blue-500 my-2">0</p>
+                <div class="text-left text-sm text-blue-800 mt-4 border-t border-blue-200 pt-4">
+                    <b>Science Rule Learned:</b> Pulleys use a wheel and rope to lift objects by changing direction or reducing effort!
+                </div>
+            </div>
+            
+            <button onclick="restartFullGame()" class="btn-chunky px-12 py-4 text-3xl bubbly-font text-green-500 w-full">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSfx(type) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            if(type === 'pop') {
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+            } else if(type === 'win') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.6);
+            }
+            osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+        }
+
+        let score = 0;
+        let currentLevel = 1;
+        let isDragging = false;
+        let levelComplete = false; 
+        let isResetting = false;
+        
+        const dragZone = document.getElementById('drag-zone');
+        const pipHand = document.getElementById('hand-l');
+        const basketGroup = document.getElementById('basket-load');
+        const wheelSpokes = document.getElementById('spokes');
+        const wheel2Spokes = document.getElementById('spokes2');
+        const wheel2Group = document.getElementById('pulley2-group');
+        const wheelCorner = document.getElementById('pulley-corner');
+        const ropePath = document.getElementById('main-rope');
+        const ropeAnchor = document.getElementById('rope-anchor');
+        const basketItems = document.getElementById('basket-items');
+        const gameContainer = document.getElementById('game-container');
+
+        let currentRestY = 320; 
+        let currentRestX = 565; 
+        let restBasketY = 400; 
+        const HANDLE_OFFSET_Y = 30; 
+        const PULLEY_Y = 150; 
+        const WIN_HEIGHT = 180; 
+
+        const levelData = {
+            1: { pulleys: 1, type: 'vertical', goal: "Lift the Acorns!", sky: "linear-gradient(to bottom, #87CEEB, #C3F0F8)", h1: "#7CB342", h2: "#558B2F", items: `<circle cx="0" cy="5" r="9" fill="#4E342E"/><circle cx="-7" cy="8" r="7" fill="#4E342E"/><circle cx="7" cy="8" r="7" fill="#4E342E"/>` },
+            2: { pulleys: 1, type: 'vertical', goal: "Sunset Twigs!", sky: "linear-gradient(to bottom, #ff9966, #ff5e62)", h1: "#b08d57", h2: "#8b4513", items: `<rect x="-15" y="0" width="30" height="4" fill="#5D4037" rx="2"/><rect x="-12" y="6" width="24" height="4" fill="#5D4037" rx="2"/><rect x="-14" y="12" width="28" height="4" fill="#5D4037" rx="2"/>` },
+            3: { pulleys: 2, type: 'vertical', goal: "Double Pulley Mushroom!", sky: "linear-gradient(to bottom, #2c3e50, #000000)", h1: "#1e3d1e", h2: "#0f1f0f", items: `<rect x="-5" y="10" width="10" height="15" fill="#E0E0E0"/><path d="M -15 12 Q 0 -5 15 12 Z" fill="#E71D36"/>` },
+            4: { pulleys: 2, type: 'vertical', goal: "Double Autumn Apple!", sky: "linear-gradient(to bottom, #f7971e, #ffd200)", h1: "#d35400", h2: "#a04000", items: `<circle cx="0" cy="12" r="12" fill="#E71D36"/><rect x="-2" y="-2" width="4" height="8" fill="#5D4037"/>` },
+            5: { pulleys: 1, type: 'diagonal', goal: "Side-Pull Challenge!", sky: "linear-gradient(to bottom, #4facfe, #00f2fe)", h1: "#f1c40f", h2: "#f39c12", items: `<circle cx="0" cy="5" r="14" fill="#FFD700" stroke="#B8860B" stroke-width="2"/><path d="M -14 0 Q 0 -15 14 0 Z" fill="#DAA520"/>` }
+        };
+
+        function nextStep(step) {
+            playSfx('pop');
+            document.getElementById('step-1').classList.add('hidden');
+            document.getElementById('step-2').classList.remove('hidden');
+        }
+
+        function startGame() {
+            playSfx('pop');
+            gsap.to('#intro-screen', { opacity: 0, pointerEvents: 'none', duration: 0.5 });
+            initClouds();
+            setupLevel();
+            updateSystem(currentRestY);
+        }
+
+        function setupLevel() {
+            levelComplete = false; 
+            const data = levelData[currentLevel];
+            document.getElementById('lvl-display').innerText = `${currentLevel} / 5`;
+            document.getElementById('level-goal').innerText = data.type === 'diagonal' ? `New Direction! ${data.goal}` : data.goal;
+            basketItems.innerHTML = data.items;
+            gameContainer.style.background = data.sky;
+            document.getElementById('hill-back').setAttribute('fill', data.h1);
+            document.getElementById('hill-front').setAttribute('fill', data.h2);
+
+            gsap.set('#pulley-corner', { opacity: data.type === 'diagonal' ? 1 : 0 });
+            gsap.set(wheel2Group, { opacity: data.pulleys === 2 ? 1 : 0 });
+            gsap.set(ropeAnchor, { opacity: data.pulleys === 2 ? 1 : 0 });
+            
+            if(data.type === 'diagonal') {
+                gsap.to('#pip-container', { x: 300, y: 540, rotation: 0, duration: 1 });
+                currentRestX = 345; 
+                restBasketY = 400;
+            } else {
+                gsap.to('#pip-container', { x: 520, y: 540, rotation: 0, duration: 1 });
+                currentRestX = 565; 
+                restBasketY = data.pulleys === 2 ? 300 : 400;
+            }
+        }
+
+        function initClouds() {
+            gsap.utils.toArray('.cloud').forEach((cloud, i) => {
+                const duration = 25 + Math.random() * 15;
+                gsap.fromTo(cloud, { x: -200 }, { x: window.innerWidth + 200, duration: duration, repeat: -1, ease: "none", delay: i * -8 });
+            });
+        }
+
+        function createConfetti() {
+            for(let i=0; i<30; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'confetti';
+                conf.style.backgroundColor = `hsl(${Math.random()*360}, 100%, 50%)`;
+                conf.style.left = '50%'; conf.style.top = '50%';
+                document.body.appendChild(conf);
+                gsap.to(conf, { x: (Math.random()-0.5) * 600, y: (Math.random()-0.5) * 600, rotation: Math.random()*360, opacity: 0, duration: 1.5, onComplete: () => conf.remove() });
+            }
+        }
+
+        const handleDown = () => { if(!isResetting) isDragging = true; playSfx('pop'); };
+        const handleUp = () => { isDragging = false; };
+        dragZone.addEventListener('mousedown', handleDown);
+        window.addEventListener('mouseup', handleUp);
+        dragZone.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(); });
+        window.addEventListener('touchend', handleUp);
+
+        window.addEventListener('mousemove', (e) => { if (isDragging) calculateMovement(e); });
+        window.addEventListener('touchmove', (e) => { if (isDragging) calculateMovement(e.touches[0]); });
+
+        function calculateMovement(e) {
+            const svg = document.getElementById('machine-svg');
+            const pt = svg.createSVGPoint(); 
+            const data = levelData[currentLevel];
+            
+            if(data.type === 'vertical') {
+                pt.y = e.clientY;
+                const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+                let newHandY = Math.max(currentRestY, Math.min(580, svgP.y));
+                updateSystem(newHandY);
+            } else {
+                pt.x = e.clientX;
+                const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+                let newHandX = Math.min(currentRestX, Math.max(50, svgP.x));
+                updateSystem(newHandX);
+            }
+        }
+
+        function updateSystem(inputVal) {
+            const data = levelData[currentLevel];
+            let delta, basketHandleY, newBasketY;
+
+            if(data.type === 'vertical') {
+                delta = inputVal - currentRestY;
+                let loadMovement = data.pulleys === 2 ? delta / 2 : delta;
+                newBasketY = restBasketY - loadMovement;
+                basketHandleY = newBasketY - HANDLE_OFFSET_Y;
+
+                gsap.set(dragZone, { attr: { cx: 565, cy: inputVal } });
+                gsap.set(pipHand, { x: 0, y: delta });
+                gsap.set(wheelSpokes, { rotation: delta * 1.5, transformOrigin: "center center" });
+
+                if (data.pulleys === 1) {
+                    gsap.set(basketGroup, { x: 635, y: newBasketY });
+                    ropePath.setAttribute('d', `M 565 ${inputVal} L 565 ${PULLEY_Y} A 35 35 0 0 1 635 ${PULLEY_Y} L 635 ${basketHandleY}`);
+                } else {
+                    let pulley2Y = basketHandleY - 25; 
+                    gsap.set(wheel2Group, { x: 610, y: pulley2Y });
+                    gsap.set(basketGroup, { x: 610, y: newBasketY });
+                    gsap.set(wheel2Spokes, { rotation: -delta * 1.5, transformOrigin: "center center" });
+                    ropePath.setAttribute('d', `M 565 ${inputVal} L 565 ${PULLEY_Y} A 35 35 0 0 1 635 ${PULLEY_Y} L 635 ${pulley2Y} A 25 25 0 0 1 585 ${pulley2Y} L 585 150`);
+                    gsap.set(ropeAnchor, { x: 585, y: 150 });
+                }
+            } else {
+                delta = currentRestX - inputVal;
+                newBasketY = restBasketY - delta;
+                basketHandleY = newBasketY - HANDLE_OFFSET_Y;
+
+                gsap.set(dragZone, { attr: { cx: inputVal, cy: currentRestY } });
+                gsap.set(pipHand, { x: -delta, y: 0 });
+                gsap.set(wheelSpokes, { rotation: delta * 1.5, transformOrigin: "center center" });
+                gsap.set(basketGroup, { x: 635, y: newBasketY });
+                ropePath.setAttribute('d', `M ${inputVal} ${currentRestY} L 565 ${currentRestY} L 565 ${PULLEY_Y} A 35 35 0 0 1 635 ${PULLEY_Y} L 635 ${basketHandleY}`);
+            }
+
+            if (!isResetting && basketHandleY <= WIN_HEIGHT && !levelComplete) {
+                levelComplete = true; 
+                showWin();
+            }
+        }
+
+        function showWin() {
+            score += (currentLevel * 10);
+            document.getElementById('score').innerText = score;
+            playSfx('win');
+            createConfetti();
+            
+            // SHOW GAME OVER SCREEN AFTER LAST LEVEL
+            if(currentLevel === 5) {
+                document.getElementById('final-score-val').innerText = score;
+                document.getElementById('final-screen').classList.replace('hidden', 'flex');
+                gsap.from('#final-screen .panel-chunky', { scale: 0, duration: 0.5, ease: "back.out(1.7)" });
+            } else {
+                document.getElementById('win-screen').classList.replace('hidden', 'flex');
+                gsap.to('#win-card', { scale: 1, duration: 0.5, ease: "back.out(1.7)" });
+            }
+        }
+
+        function nextLevel() {
+            playSfx('pop');
+            levelComplete = true; 
+            currentLevel++;
+            
+            gsap.to('#win-card', { scale: 0, duration: 0.3, onComplete: () => {
+                document.getElementById('win-screen').classList.replace('flex', 'hidden');
+                setupLevel();
+                resetPosition();
+            }});
+        }
+
+        function restartFullGame() {
+            playSfx('pop');
+            location.reload();
+        }
+
+        function resetPosition() {
+            isResetting = true;
+            const data = levelData[currentLevel];
+            const dummy = { val: data.type === 'vertical' ? parseFloat(dragZone.getAttribute('cy')) : parseFloat(dragZone.getAttribute('cx')) };
+            const target = data.type === 'vertical' ? currentRestY : currentRestX;
+
+            gsap.to(dummy, { val: target, duration: 1, ease: "power2.inOut", 
+                onUpdate: () => updateSystem(dummy.val),
+                onComplete: () => { isResetting = false; }
+            });
+        }
+
+        window.onload = () => { setupLevel(); updateSystem(currentRestY); }
+    </script>
+</body>
+</html>

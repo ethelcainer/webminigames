@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Litmus Garden | Std 3 Science</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.4);
+        }
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 2rem;
+            background: linear-gradient(45deg, #a78bfa, #fbcfe8, #818cf8, #c084fc);
+            background-size: 400% 400%;
+            animation: ambientLight 15s ease infinite;
+        }
+
+        @keyframes ambientLight {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .title-font { font-family: 'Fredoka', sans-serif; }
+
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 2px solid var(--glass-border);
+            border-radius: 28px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Test Tray Scrollable Area */
+        #item-grid {
+            height: 340px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        #item-grid::-webkit-scrollbar { width: 6px; }
+        #item-grid::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        #item-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.4); border-radius: 10px; }
+
+        .item-card {
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            transition: all 0.2s ease;
+            cursor: grab;
+            background: white;
+            border-radius: 18px;
+            box-sizing: border-box;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.05);
+        }
+        .item-card:hover {
+            transform: translateY(-3px);
+            background-color: #fdfcff;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+
+        .icon-container {
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Litmus Papers resized to be bigger */
+        .litmus-strip {
+            width: 65px;
+            height: 170px;
+            border-radius: 14px;
+            position: relative;
+            box-shadow: inset 0 -10px 0 rgba(0,0,0,0.1);
+            border: 5px solid rgba(255,255,255,0.6);
+        }
+
+        .liquid-progress {
+            width: 100%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 4px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        #progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+            border-radius: 15px;
+            transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        #start-screen {
+            background: rgba(88, 28, 135, 0.85);
+            backdrop-filter: blur(25px);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 text-white text-center">
+        <h1 class="title-font text-6xl mb-6 drop-shadow-lg">MAGIC LAB</h1>
+        <div class="max-w-2xl w-full grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+            <div class="bg-white/10 p-6 rounded-3xl border border-white/20">
+                <div class="text-sm font-black mb-2 tracking-tighter">RED TO BLUE</div>
+                <h3 class="font-bold text-yellow-300">ALKALINE</h3>
+                <p class="text-xs opacity-80">Red turns Blue. Blue stays Blue.</p>
+            </div>
+            <div class="bg-white/10 p-6 rounded-3xl border border-white/20">
+                <div class="text-sm font-black mb-2 tracking-tighter">BLUE TO RED</div>
+                <h3 class="font-bold text-rose-300">ACIDIC</h3>
+                <p class="text-xs opacity-80">Blue turns Red. Red stays Red.</p>
+            </div>
+            <div class="bg-white/10 p-6 rounded-3xl border border-white/20">
+                <div class="text-sm font-black mb-2 tracking-tighter">NO CHANGE</div>
+                <h3 class="font-bold text-emerald-300">NEUTRAL</h3>
+                <p class="text-xs opacity-80">No color changes at all!</p>
+            </div>
+        </div>
+        <button onclick="startGame()" class="bg-yellow-400 text-purple-900 px-14 py-5 rounded-full title-font text-3xl hover:scale-105 transition-all shadow-2xl active:scale-95">START EXPERIMENT</button>
+    </div>
+
+    <header class="w-full max-w-4xl flex justify-between items-center z-10">
+        <div class="glass-panel px-5 py-2 flex items-center gap-3">
+            <svg width="24" height="24" viewBox="0 0 24 24"><path fill="#facc15" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <div>
+                <p class="text-[9px] font-bold text-white/80 uppercase leading-none">Score</p>
+                <p id="score-val" class="text-xl font-black text-white leading-none">00</p>
+            </div>
+        </div>
+        
+        <div class="text-center">
+            <h1 class="title-font text-4xl text-white drop-shadow-md">MAGIC <span class="text-yellow-300">LAB</span></h1>
+            <div class="bg-black/10 backdrop-blur-md rounded-full px-4 py-1 text-white font-bold text-[10px] mt-1 inline-block border border-white/10">
+                TIME: <span id="timer-text">0.0s</span>
+            </div>
+        </div>
+
+        <div class="glass-panel px-5 py-2">
+            <p class="text-[9px] font-bold text-white/80 uppercase text-right leading-none">Items Left</p>
+            <p id="items-left" class="text-xl font-black text-white text-right leading-none">10/10</p>
+        </div>
+    </header>
+
+    <main class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-12 gap-6 z-10 flex-grow my-6 items-stretch">
+        
+        <div class="md:col-span-5 glass-panel p-6 flex flex-col">
+            <h2 class="title-font text-white text-lg mb-4 flex items-center gap-2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                Test Tray
+            </h2>
+            <div id="item-grid" class="grid grid-cols-2 gap-3">
+                </div>
+        </div>
+
+        <div class="md:col-span-7 glass-panel p-8 flex flex-col items-center justify-center relative border-dashed border-2 border-white/20">
+            
+            <div id="drop-zone" class="w-full h-full bg-white/10 rounded-[40px] flex flex-col items-center justify-center transition-all duration-300 relative">
+                <div id="hint-msg" class="absolute top-8 text-white/90 text-xs font-bold tracking-widest text-center px-4 uppercase">
+                    Drag an item to the center
+                </div>
+
+                <div class="flex gap-10">
+                    <div class="flex flex-col items-center gap-4">
+                        <div id="red-strip" class="litmus-strip bg-[#ff5f5f]"></div>
+                        <span class="bg-red-500/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase">Red Paper</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-4">
+                        <div id="blue-strip" class="litmus-strip bg-[#5f86ff]"></div>
+                        <span class="bg-blue-600/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase">Blue Paper</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ui-choices" class="mt-6 flex gap-3 opacity-0 scale-90 pointer-events-none transition-all duration-500">
+                <button onclick="checkResult('acidic')" class="bg-rose-500 text-white px-6 py-3 rounded-2xl font-bold shadow-[0_4px_0_#be123c] hover:translate-y-1 transition-all active:shadow-none">ACIDIC</button>
+                <button onclick="checkResult('neutral')" class="bg-emerald-500 text-white px-6 py-3 rounded-2xl font-bold shadow-[0_4px_0_#047857] hover:translate-y-1 transition-all active:shadow-none">NEUTRAL</button>
+                <button onclick="checkResult('alkaline')" class="bg-sky-500 text-white px-6 py-3 rounded-2xl font-bold shadow-[0_4px_0_#1d4ed8] hover:translate-y-1 transition-all active:shadow-none">ALKALINE</button>
+            </div>
+        </div>
+    </main>
+
+    <div class="w-full max-w-4xl z-10 glass-panel p-4 mb-2">
+        <div class="flex justify-between text-white font-bold text-[9px] mb-2 tracking-widest">
+            <span>SCIENTIST RANK PROGRESS</span>
+            <span id="progress-percent">0%</span>
+        </div>
+        <div class="liquid-progress">
+            <div id="progress-fill"></div>
+        </div>
+    </div>
+
+    <div id="win-screen" class="fixed inset-0 bg-indigo-900/90 hidden z-[110] flex-col items-center justify-center text-center p-8">
+        <div class="bg-white rounded-[40px] p-10 shadow-2xl flex flex-col items-center max-w-md">
+            <h2 class="title-font text-indigo-600 text-5xl mb-2">FANTASTIC!</h2>
+            <p id="final-stats" class="text-slate-600 text-lg mb-8"></p>
+            <button onclick="location.reload()" class="bg-yellow-400 text-purple-900 px-10 py-4 rounded-full title-font text-xl font-bold hover:scale-110 shadow-xl transition-transform">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const ALL_ITEMS = [
+            { name: 'Lime Juice', type: 'acidic', svg: `<circle cx="12" cy="12" r="10" fill="#bef264"/><path d="M12 4v16M4 12h16" stroke="#f7fee7" stroke-width="1.5"/><circle cx="12" cy="12" r="1.5" fill="white"/>` },
+            { name: 'Soap Water', type: 'alkaline', svg: `<rect x="4" y="6" width="16" height="12" rx="3" fill="#bae6fd"/><circle cx="18" cy="7" r="2" fill="white" opacity="0.8"/><circle cx="5" cy="16" r="3" fill="white" opacity="0.4"/>` },
+            { name: 'Salt Solution', type: 'neutral', svg: `<path d="M6 8l2-4h8l2 4v10a2 2 0 01-2 2H8a2 2 0 01-2-2V8z" fill="#f1f5f9" stroke="#cbd5e1"/><rect x="9" y="10" width="6" height="6" fill="#94a3b8" rx="1"/>` },
+            { name: 'Bleach', type: 'alkaline', svg: `<path d="M8 20h8V8l-2-2V4H10v2L8 8v12z" fill="white" stroke="#3b82f6" stroke-width="1.5"/><rect x="8" y="12" width="8" height="3" fill="#3b82f6"/>` },
+            { name: 'Vinegar', type: 'acidic', svg: `<path d="M9 21h6V9l-1-4H10l-1 4v12z" fill="#fef3c7" stroke="#d97706"/><rect x="9" y="12" width="6" height="4" fill="#fbbf24" opacity="0.6"/>` },
+            { name: 'Baking Soda', type: 'alkaline', svg: `<rect x="5" y="8" width="14" height="12" rx="2" fill="#e2e8f0"/><text x="12" y="16" font-size="5" text-anchor="middle" font-weight="bold" fill="#64748b">SODA</text>` },
+            { name: 'Cooking Oil', type: 'neutral', svg: `<path d="M12 3c-4 6-7 9-7 13a7 7 0 0014 0c0-4-3-7-7-13z" fill="#fbbf24"/>` },
+            { name: 'Bitter Gourd', type: 'alkaline', svg: `<ellipse cx="12" cy="12" rx="8" ry="4" fill="#16a34a"/>` },
+            { name: 'Rice Water', type: 'neutral', svg: `<path d="M4 10a8 8 0 0016 0H4z" fill="#cbd5e1"/><ellipse cx="12" cy="9" rx="7" ry="2" fill="#f8fafc"/>` },
+            { name: 'Fizzy Drink', type: 'acidic', svg: `<rect x="7" y="5" width="10" height="15" rx="2" fill="#fb923c"/>` },
+            { name: 'Toothpaste', type: 'alkaline', svg: `<path d="M4 17s3-2 8-2 8 2 8 2v3H4v-3z" fill="#f87171"/><path d="M4 14s3-2 8-2 8 2 8 2v3H4v-3z" fill="white"/>` },
+            { name: 'Pineapple', type: 'acidic', svg: `<ellipse cx="12" cy="14" rx="5" ry="7" fill="#facc15"/><path d="M10 8l2-5 2 5" stroke="#15803d" stroke-width="2" fill="none"/>` },
+            { name: 'Fresh Milk', type: 'neutral', svg: `<path d="M8 4h8l1 16H7L8 4z" fill="white" stroke="#e2e8f0"/>` },
+            { name: 'Egg White', type: 'alkaline', svg: `<path d="M12 2a7 7 0 00-7 9c0 4 3 11 7 11s7-7 7-11a7 7 0 00-7-9z" fill="#f1f5f9" stroke="#cbd5e1"/>` },
+            { name: 'Tamarind', type: 'acidic', svg: `<path d="M5 12a4 4 0 018 0 4 4 0 008 0" stroke="#78350f" stroke-width="3" fill="none"/>` }
+        ];
+
+        let selectedItems = [];
+        let activeItem = null;
+        let score = 0;
+        let startTime = 0;
+        let timerInterval;
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSfx(freq, type="sine", dur=0.2) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        }
+
+        function startGame() {
+            gsap.to("#start-screen", { opacity: 0, pointerEvents: "none", duration: 0.5 });
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000;
+                document.getElementById('timer-text').innerText = elapsed.toFixed(1) + 's';
+            }, 100);
+            initGame();
+        }
+
+        function initGame() {
+            selectedItems = [...ALL_ITEMS].sort(() => Math.random() - 0.5).slice(0, 10);
+            renderInventory();
+        }
+
+        function renderInventory() {
+            const grid = document.getElementById('item-grid');
+            grid.innerHTML = '';
+            selectedItems.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = "item-card";
+                card.draggable = true;
+                card.innerHTML = `
+                    <div class="icon-container"><svg viewBox="0 0 24 24" class="w-full h-full">${item.svg}</svg></div>
+                    <span class="text-[8px] font-bold text-slate-700 uppercase mt-2 text-center leading-tight">${item.name}</span>
+                `;
+                card.addEventListener('dragstart', () => { 
+                    activeItem = item; 
+                    card.style.opacity = "0.4";
+                    playSfx(400, "triangle");
+                });
+                card.addEventListener('dragend', () => card.style.opacity = "1");
+                grid.appendChild(card);
+            });
+        }
+
+        const dz = document.getElementById('drop-zone');
+        dz.addEventListener('dragover', e => e.preventDefault());
+        dz.addEventListener('drop', e => {
+            e.preventDefault();
+            // Disappear immediately from tray
+            selectedItems = selectedItems.filter(i => i.name !== activeItem.name);
+            renderInventory();
+            startTesting();
+        });
+
+        function startTesting() {
+            document.getElementById('hint-msg').innerText = `ANALYZING ${activeItem.name}...`;
+            playSfx(600);
+            gsap.to("#red-strip", { backgroundColor: "#ff5f5f", duration: 0.2 });
+            gsap.to("#blue-strip", { backgroundColor: "#5f86ff", duration: 0.2 });
+
+            setTimeout(() => {
+                if(activeItem.type === 'acidic') {
+                    gsap.to("#blue-strip", { backgroundColor: "#ff5f5f", duration: 0.8 });
+                } else if(activeItem.type === 'alkaline') {
+                    gsap.to("#red-strip", { backgroundColor: "#5f86ff", duration: 0.8 });
+                }
+                gsap.to("#ui-choices", { opacity: 1, scale: 1, pointerEvents: "auto" });
+            }, 600);
+        }
+
+        function checkResult(choice) {
+            if(choice === activeItem.type) {
+                score += 10;
+                document.getElementById('score-val').innerText = score.toString().padStart(2, '0');
+                confetti({ particleCount: 40, spread: 70, origin: { y: 0.8 } });
+                playSfx(1000, "sine", 0.4);
+                updateUI();
+            } else {
+                playSfx(100, "sawtooth", 0.5);
+                gsap.to("#drop-zone", { x: 10, repeat: 5, yoyo: true, duration: 0.05 });
+            }
+        }
+
+        function updateUI() {
+            gsap.to("#ui-choices", { opacity: 0, scale: 0.9, pointerEvents: "none" });
+            const solved = 10 - selectedItems.length;
+            document.getElementById('items-left').innerText = `${selectedItems.length}/10`;
+            document.getElementById('progress-fill').style.width = `${solved * 10}%`;
+            document.getElementById('progress-percent').innerText = `${solved * 10}%`;
+
+            if(selectedItems.length === 0) {
+                clearInterval(timerInterval);
+                document.getElementById('final-stats').innerText = `Finished in ${document.getElementById('timer-text').innerText}!`;
+                document.getElementById('win-screen').classList.remove('hidden');
+                document.getElementById('win-screen').classList.add('flex');
+            } else {
+                document.getElementById('hint-msg').innerText = "SUCCESS! CHOOSE NEXT ITEM.";
+            }
+        }
+    </script>
+</body>
+</html>

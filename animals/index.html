@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animal Architect: Habitat & Habits</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --mx: 0; --my: 0; }
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background: #0097A7;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- Parallax & Animated Background --- */
+        .parallax-wrap {
+            position: fixed; inset: 0; z-index: -1;
+            background: linear-gradient(to bottom, #80DEEA, #E0F7FA);
+        }
+        .layer { position: absolute; bottom: 0; width: 120%; left: -10%; }
+        .hills-back { height: 65%; background: #81C784; clip-path: ellipse(80% 60% at 50% 100%); opacity: 0.7; }
+        .hills-front { height: 45%; background: #66BB6A; clip-path: ellipse(70% 50% at 50% 100%); }
+        
+        .cloud-container { position: absolute; top: 0; width: 100%; height: 40%; overflow: hidden; }
+        .cloud-svg { position: absolute; fill: white; opacity: 0.8; filter: blur(1px); }
+        
+        @keyframes floatClouds {
+            from { transform: translateX(-200px); }
+            to { transform: translateX(100vw); }
+        }
+
+        /* --- Game Window --- */
+        .game-window {
+            width: 90vw; max-width: 1000px;
+            height: 80vh; max-height: 700px;
+            background: #FAFAFA; /* Light clean background */
+            border: 6px solid #4DB6AC; /* Thinner teal border */
+            border-radius: 40px;
+            box-shadow: 0 20px 0 #00897B, 0 30px 60px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .option-btn {
+            background: white;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-size: 0.85rem;
+            color: #455A64;
+            border-width: 3px;
+        }
+        
+        /* Category Specific Colors */
+        .btn-habitat { border-color: #81C784; }
+        .btn-habitat:hover:not(:disabled) { background: #E8F5E9; }
+        
+        .btn-food { border-color: #9575CD; }
+        .btn-food:hover:not(:disabled) { background: #F3E5F5; }
+        
+        .btn-teeth { border-color: #F06292; }
+        .btn-teeth:hover:not(:disabled) { background: #FCE4EC; }
+
+        .option-btn.selected { background: #37474F; color: white; border-color: #263238; box-shadow: 0 4px 0 #212121; }
+        .option-btn.correct { background: #66BB6A; border-color: #2E7D32; color: white; box-shadow: 0 4px 0 #2E7D32; }
+        .option-btn.wrong { background: #EF5350; border-color: #B71C1C; color: white; box-shadow: 0 4px 0 #B71C1C; }
+
+        /* --- Blinking Fix --- */
+        .eye-lid { transition: transform 0.1s; transform: scaleY(0); transform-origin: top; }
+        .blink-anim { animation: blinkAction 5s infinite; }
+        @keyframes blinkAction { 0%, 92%, 100% { transform: scaleY(0); } 96% { transform: scaleY(1.2); } }
+
+        .floating { animation: floatAnim 4s ease-in-out infinite; }
+        @keyframes floatAnim { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #B2DFDB; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="parallax-wrap">
+        <div class="cloud-container">
+            <svg class="cloud-svg" style="width:100px; top:12%; animation: floatClouds 60s linear infinite" viewBox="0 0 24 24"><path d="M17.5,19c-3,0-5.5-2.5-5.5-5.5c0-0.3,0-0.6,0.1-0.9C10.6,12.1,9,10.2,9,8c0-2.2,1.8-4,4-4c1.1,0,2.1,0.4,2.8,1.2C16.5,5.1,17.2,5,18,5c2.2,0,4,1.8,4,4c0,0.5-0.1,1-0.3,1.4C22.2,11.2,22.5,12.1,22.5,13c0,2.5-2,4.5-4.5,4.5c-0.2,0-0.3,0-0.5,0c-0.5,1.2-1.7,2-3,2C14,19.5,13.5,19.4,13,19.2c-0.5,0.5-1.2,0.8-2,0.8c-1.7,0-3-1.3-3-3c0-0.3,0.1-0.7,0.2-1C7.5,16,6.8,16,6,16c-2.8,0-5-2.2-5-5s2.2-5,5-5c0.5,0,0.9,0.1,1.4,0.2C8.2,5.1,9.5,4,11,4c1.9,0,3.5,1.6,3.5,3.5c0,0.2,0,0.3,0,0.5C15.2,7.4,16.2,7,17.2,7c2.1,0,3.8,1.7,3.8,3.8c0,0.4-0.1,0.8-0.2,1.2c0.9,0.5,1.5,1.5,1.5,2.5C22.3,16.2,20.2,18.3,17.5,18.3z"/></svg>
+            <svg class="cloud-svg" style="width:150px; top:20%; animation: floatClouds 40s linear infinite -15s" viewBox="0 0 24 24"><path d="M17.5,19c-3,0-5.5-2.5-5.5-5.5c0-0.3,0-0.6,0.1-0.9C10.6,12.1,9,10.2,9,8c0-2.2,1.8-4,4-4c1.1,0,2.1,0.4,2.8,1.2C16.5,5.1,17.2,5,18,5c2.2,0,4,1.8,4,4c0,0.5-0.1,1-0.3,1.4C22.2,11.2,22.5,12.1,22.5,13c0,2.5-2,4.5-4.5,4.5c-0.2,0-0.3,0-0.5,0c-0.5,1.2-1.7,2-3,2C14,19.5,13.5,19.4,13,19.2c-0.5,0.5-1.2,0.8-2,0.8c-1.7,0-3-1.3-3-3c0-0.3,0.1-0.7,0.2-1C7.5,16,6.8,16,6,16c-2.8,0-5-2.2-5-5s2.2-5,5-5c0.5,0,0.9,0.1,1.4,0.2C8.2,5.1,9.5,4,11,4c1.9,0,3.5,1.6,3.5,3.5c0,0.2,0,0.3,0,0.5C15.2,7.4,16.2,7,17.2,7c2.1,0,3.8,1.7,3.8,3.8c0,0.4-0.1,0.8-0.2,1.2c0.9,0.5,1.5,1.5,1.5,2.5C22.3,16.2,20.2,18.3,17.5,18.3z"/></svg>
+        </div>
+        <div class="layer hills-back" :style="parallaxStyle(0.04)"></div>
+        <div class="layer hills-front" :style="parallaxStyle(0.08)"></div>
+    </div>
+
+    <div id="app" class="game-window">
+        
+        <div v-if="gameState === 'intro'" class="absolute inset-0 bg-white/95 z-[100] flex flex-col items-center justify-center p-12 text-center">
+            <h1 class="text-5xl font-black text-teal-600 mb-6 drop-shadow-sm">ANIMAL ARCHITECT</h1>
+            <p class="text-xl text-slate-600 mb-10 max-w-xl font-medium leading-relaxed">Study the specimens and help us classify them! Use the Field Guide to discover where they live and what they eat.</p>
+            <button @click="gameState = 'playing'" class="bg-teal-500 text-white text-2xl font-black px-12 py-5 rounded-full shadow-[0_8px_0_#00796B] hover:scale-105 active:translate-y-2 transition-all">START MISSION</button>
+        </div>
+
+        <div class="p-5 flex justify-between items-center bg-teal-50/50 border-b-2 border-teal-100">
+            <div class="flex items-center gap-4">
+                <div class="bg-teal-600 p-2 rounded-xl shadow-sm">
+                    <svg width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M12,2L4.5,20.29L5.21,21L12,18L18.79,21L19.5,20.29L12,2Z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-xl font-black text-teal-900 uppercase tracking-tight">Mission Console</h2>
+                    <div class="w-36 h-3 bg-teal-100 rounded-full border border-white overflow-hidden">
+                        <div class="h-full bg-teal-500 transition-all duration-700" :style="{ width: ((currentStep + 1) / animalData.length) * 100 + '%' }"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-teal-800 text-white font-black text-xl px-8 py-2 rounded-full shadow-md">
+                ⭐ {{ score }}
+            </div>
+        </div>
+
+        <div class="flex-1 flex overflow-hidden">
+            
+            <div class="w-1/2 flex flex-col p-8 items-center justify-center relative bg-slate-50/30">
+                <div class="absolute top-8 left-8">
+                    <h3 class="text-4xl font-black text-slate-800 uppercase tracking-tight">{{ currentAnimal.name }}</h3>
+                    <p class="text-teal-600 font-bold text-sm mt-1">ID: SPECIMEN-00{{ currentStep + 1 }}</p>
+                </div>
+                
+                <div class="floating">
+                    <component :is="currentAnimal.component" :mouse="mouseCoords"></component>
+                </div>
+            </div>
+
+            <div class="w-1/2 p-6 flex flex-col gap-5 overflow-y-auto custom-scroll border-l-2 border-slate-100 bg-white/40">
+                <div v-for="(category, catKey) in categories" :key="catKey" class="bg-white/80 p-4 rounded-3xl border-2 border-slate-100">
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-2">{{ category.label }}</h4>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button 
+                            v-for="option in category.options" 
+                            :key="option"
+                            @click="selectOption(catKey, option)"
+                            :disabled="showFeedback"
+                            class="option-btn py-2.5 px-4 rounded-xl font-bold uppercase"
+                            :class="[getOptionClass(catKey, option), catKey === 'habitat' ? 'btn-habitat' : (catKey === 'food' ? 'btn-food' : 'btn-teeth')]"
+                        >
+                            {{ option }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-auto pt-4">
+                    <button 
+                        @click="showFeedback ? nextAnimal() : checkAnswer()"
+                        :disabled="!isSelectionComplete && !showFeedback"
+                        class="w-full py-4 text-white font-black text-xl rounded-2xl shadow-lg transition-all active:translate-y-1 uppercase tracking-tight"
+                        :class="showFeedback ? 'bg-emerald-500 shadow-[0_6px_0_#065F46]' : 'bg-slate-700 shadow-[0_6px_0_#212121] disabled:opacity-30'"
+                    >
+                        {{ showFeedback ? 'CONTINUE ➜' : 'VALIDATE' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="h-28 bg-slate-800 border-t-4 border-teal-500 p-5 flex items-center gap-6 relative">
+            <div class="bg-teal-500 p-2.5 rounded-full flex-shrink-0 shadow-lg">
+                <svg width="24" height="24" fill="white" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,16.5L6.5,12L11,7.5V10.5H13V7.5L17.5,12L13,16.5V13.5H11V16.5Z" /></svg>
+            </div>
+            <div class="flex-1 overflow-y-auto custom-scroll pr-2">
+                <h4 class="text-teal-400 font-black uppercase text-[10px] tracking-widest mb-0.5">Field Guide Notes</h4>
+                <p class="text-slate-100 text-base leading-relaxed italic opacity-90" v-html="currentAnimal.info"></p>
+            </div>
+        </div>
+
+        <div v-if="gameFinished" class="absolute inset-0 bg-teal-600 z-[200] flex flex-col items-center justify-center text-white text-center p-12">
+            <h1 class="text-6xl font-black mb-6">MISSION COMPLETE</h1>
+            <p class="text-xl mb-10 max-w-lg font-medium opacity-90">Outstanding work! All specimens have been analyzed and cataloged successfully.</p>
+            <div class="bg-white/10 p-8 rounded-3xl border-2 border-white/20 mb-10">
+                <span class="text-xs uppercase font-black opacity-70">Analysis Accuracy Score</span>
+                <div class="text-6xl font-black text-teal-100">{{ score }}</div>
+            </div>
+            <button @click="resetGame" class="bg-white text-teal-700 px-16 py-6 rounded-full font-black text-2xl shadow-xl hover:scale-105 active:translate-y-2 transition-all">SYSTEM REBOOT</button>
+        </div>
+    </div>
+
+<script>
+const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+
+const LionSVG = {
+    props: ['mouse'],
+    template: `
+    <svg viewBox="0 0 200 200" width="280" height="280">
+        <circle cx="100" cy="100" r="90" fill="#E65100" />
+        <g :style="{ transform: 'translate(' + mouse.x*15 + 'px, ' + mouse.y*15 + 'px)' }">
+            <circle cx="100" cy="105" r="70" fill="#FFB300" />
+            <g transform="translate(75, 90)">
+                <circle r="14" fill="white" />
+                <circle :cx="mouse.x*7" :cy="mouse.y*7" r="7" fill="black" />
+                <rect class="eye-lid blink-anim" x="-18" y="-18" width="36" height="36" fill="#FFB300" rx="4" />
+            </g>
+            <g transform="translate(125, 90)">
+                <circle r="14" fill="white" />
+                <circle :cx="mouse.x*7" :cy="mouse.y*7" r="7" fill="black" />
+                <rect class="eye-lid blink-anim" x="-18" y="-18" width="36" height="36" fill="#FFB300" rx="4" />
+            </g>
+            <rect x="88" y="115" width="24" height="14" rx="7" fill="#3E2723" />
+            <path d="M85 140 Q100 155 115 140" stroke="#3E2723" stroke-width="5" fill="none" stroke-linecap="round" />
+        </g>
+    </svg>`
+};
+
+const CowSVG = {
+    props: ['mouse'],
+    template: `
+    <svg viewBox="0 0 200 200" width="280" height="280">
+        <circle cx="100" cy="100" r="85" fill="#FFF" stroke="#CFD8DC" stroke-width="6" />
+        <path d="M35 55 Q25 35 45 25 T65 45" fill="#333" />
+        <g :style="{ transform: 'translate(' + mouse.x*12 + 'px, ' + mouse.y*12 + 'px)' }">
+            <rect x="50" y="115" width="100" height="60" rx="30" fill="#F8BBD0" />
+            <g transform="translate(70, 85)">
+                <circle r="16" fill="white" stroke="#EEE" />
+                <circle :cx="mouse.x*8" :cy="mouse.y*8" r="8" fill="black" />
+                <rect class="eye-lid blink-anim" x="-20" y="-20" width="40" height="40" fill="#FFF" rx="4" />
+            </g>
+            <g transform="translate(130, 85)">
+                <circle r="16" fill="white" stroke="#EEE" />
+                <circle :cx="mouse.x*8" :cy="mouse.y*8" r="8" fill="black" />
+                <rect class="eye-lid blink-anim" x="-20" y="-20" width="40" height="40" fill="#FFF" rx="4" />
+            </g>
+            <circle cx="85" cy="140" r="6" fill="#880E4F" />
+            <circle cx="115" cy="140" r="6" fill="#880E4F" />
+        </g>
+    </svg>`
+};
+
+const MonkeySVG = {
+    props: ['mouse'],
+    template: `
+    <svg viewBox="0 0 200 200" width="280" height="280">
+        <circle cx="35" cy="95" r="28" fill="#6D4C41" />
+        <circle cx="165" cy="95" r="28" fill="#6D4C41" />
+        <g :style="{ transform: 'translate(' + mouse.x*18 + 'px, ' + mouse.y*18 + 'px)' }">
+            <circle cx="100" cy="100" r="80" fill="#8D6E63" />
+            <path d="M50 90 Q100 60 150 90 Q150 160 100 170 Q50 160 50 90" fill="#D7CCC8" />
+            <g transform="translate(75, 105)">
+                <circle r="11" fill="black" />
+                <rect class="eye-lid blink-anim" x="-15" y="-15" width="30" height="30" fill="#D7CCC8" rx="4" />
+            </g>
+            <g transform="translate(125, 105)">
+                <circle r="11" fill="black" />
+                <rect class="eye-lid blink-anim" x="-15" y="-15" width="30" height="30" fill="#D7CCC8" rx="4" />
+            </g>
+            <path d="M85 145 Q100 160 115 145" stroke="#3E2723" stroke-width="4" fill="none" stroke-linecap="round" />
+        </g>
+    </svg>`
+};
+
+const SharkSVG = {
+    props: ['mouse'],
+    template: `
+    <svg viewBox="0 0 200 200" width="280" height="280">
+        <path d="M100 15 L145 85 L55 85 Z" fill="#78909C" />
+        <g :style="{ transform: 'translate(' + mouse.x*20 + 'px, ' + mouse.y*20 + 'px)' }">
+            <ellipse cx="100" cy="125" rx="95" ry="70" fill="#90A4AE" />
+            <path d="M25 125 Q100 170 175 125" fill="white" />
+            <g transform="translate(70, 105)">
+                <circle r="9" fill="black" />
+                <rect class="eye-lid blink-anim" x="-12" y="-12" width="24" height="24" fill="#90A4AE" rx="4" />
+            </g>
+            <g transform="translate(130, 105)">
+                <circle r="9" fill="black" />
+                <rect class="eye-lid blink-anim" x="-12" y="-12" width="24" height="24" fill="#90A4AE" rx="4" />
+            </g>
+            <path d="M75 150 L85 138 L95 150 L105 138 L115 150 L125 138" stroke="#37474F" stroke-width="4" fill="none" />
+        </g>
+    </svg>`
+};
+
+const RabbitSVG = {
+    props: ['mouse'],
+    template: `
+    <svg viewBox="0 0 200 200" width="280" height="280">
+        <rect x="58" y="5" width="28" height="100" rx="14" fill="#E0E0E0" />
+        <rect x="114" y="5" width="28" height="100" rx="14" fill="#E0E0E0" />
+        <g :style="{ transform: 'translate(' + mouse.x*15 + 'px, ' + mouse.y*15 + 'px)' }">
+            <circle cx="100" cy="118" r="75" fill="#F5F5F5" />
+            <g transform="translate(75, 108)">
+                <circle r="10" fill="black" />
+                <rect class="eye-lid blink-anim" x="-14" y="-14" width="28" height="28" fill="#F5F5F5" rx="4" />
+            </g>
+            <g transform="translate(125, 108)">
+                <circle r="10" fill="black" />
+                <rect class="eye-lid blink-anim" x="-14" y="-14" width="28" height="28" fill="#F5F5F5" rx="4" />
+            </g>
+            <circle cx="100" cy="130" r="8" fill="#F06292" />
+            <rect x="92" y="145" width="8" height="12" fill="white" stroke="#CFD8DC" />
+            <rect x="100" y="145" width="8" height="12" fill="white" stroke="#CFD8DC" />
+        </g>
+    </svg>`
+};
+
+createApp({
+    components: { LionSVG, CowSVG, MonkeySVG, SharkSVG, RabbitSVG },
+    setup() {
+        const score = ref(0);
+        const currentStep = ref(0);
+        const gameState = ref('intro');
+        const showFeedback = ref(false);
+        const gameFinished = ref(false);
+        const mouseCoords = ref({ x: 0, y: 0 });
+        const selections = ref({ habitat: null, food: null, teeth: null });
+
+        const categories = {
+            habitat: { label: 'Habitat', options: ['Forest', 'Savanna', 'Farm', 'Ocean'] },
+            food: { label: 'Eating Habit', options: ['Herbivore', 'Carnivore', 'Omnivore'] },
+            teeth: { label: 'Dentition', options: ['Incisors & Molars', 'Canines', 'All Three Types'] }
+        };
+
+        const animalData = [
+            { name: 'Cow', component: 'CowSVG', habitat: 'Farm', food: 'Herbivore', teeth: 'Incisors & Molars',
+              info: "I usually graze in large open fields with wooden fences and barns. I strictly feed on green pastures and vegetation. Because I only chew on grass and clover, my mouth is full of broad, flat teeth for grinding." },
+            { name: 'Lion', component: 'LionSVG', habitat: 'Savanna', food: 'Carnivore', teeth: 'Canines',
+              info: "I prowl through dry, golden grasslands under a hot sun. My energy comes purely from hunting and consuming other creatures. To catch my meals, I rely on long, pointed teeth that act like daggers." },
+            { name: 'Monkey', component: 'MonkeySVG', habitat: 'Forest', food: 'Omnivore', teeth: 'All Three Types',
+              info: "I live high up in a place with thick trees and heavy rainfall. I am not a picky eater; I love sweet fruits as much as I like crunchy bugs. Since I enjoy both snacks, I need a complete set of teeth for biting and grinding." },
+            { name: 'Shark', component: 'SharkSVG', habitat: 'Ocean', food: 'Carnivore', teeth: 'Canines',
+              info: "My world is deep and blue, beneath the waves. I am a master predator that only eats fish and other sea life. My jaw is lined with razor-sharp, pointed spikes to ensure my prey cannot escape." },
+            { name: 'Rabbit', component: 'RabbitSVG', habitat: 'Forest', food: 'Herbivore', teeth: 'Incisors & Molars',
+              info: "I hide in burrows deep within the lush, green woodlands. I only eat vegetables, leaves, and bark. To nibble on these tough fibers, I use my large front biting teeth and flat grinding ones at the back." }
+        ];
+
+        const currentAnimal = computed(() => animalData[currentStep.value]);
+        const isSelectionComplete = computed(() => selections.value.habitat && selections.value.food && selections.value.teeth);
+
+        const handleMouseMove = (e) => {
+            const x = (e.clientX / window.innerWidth) - 0.5;
+            const y = (e.clientY / window.innerHeight) - 0.5;
+            mouseCoords.value = { x, y };
+            document.documentElement.style.setProperty('--mx', x);
+            document.documentElement.style.setProperty('--my', y);
+        };
+
+        const parallaxStyle = (factor) => ({ transform: `translate(calc(var(--mx) * ${factor * -500}px), calc(var(--my) * ${factor * -200}px))` });
+
+        const selectOption = (cat, val) => {
+            if (showFeedback.value) return;
+            selections.value[cat] = val;
+            playTone(500 + (Math.random() * 50), 0.05, 'sine');
+        };
+
+        const getOptionClass = (cat, opt) => {
+            if (!showFeedback.value) return selections.value[cat] === opt ? 'selected' : '';
+            const isCorrect = currentAnimal.value[cat] === opt;
+            const isSelected = selections.value[cat] === opt;
+            if (isCorrect) return 'correct';
+            if (isSelected && !isCorrect) return 'wrong';
+            return 'opacity-20 scale-90';
+        };
+
+        const checkAnswer = () => {
+            showFeedback.value = true;
+            const isAllCorrect = selections.value.habitat === currentAnimal.value.habitat &&
+                               selections.value.food === currentAnimal.value.food &&
+                               selections.value.teeth === currentAnimal.value.teeth;
+            if (isAllCorrect) { score.value += 200; playSuccessSound(); } else { playErrorSound(); }
+        };
+
+        const nextAnimal = () => {
+            if (currentStep.value < animalData.length - 1) {
+                currentStep.value++; showFeedback.value = false;
+                selections.value = { habitat: null, food: null, teeth: null };
+            } else { gameFinished.value = true; }
+        };
+
+        const resetGame = () => {
+            score.value = 0; currentStep.value = 0; gameState.value = 'intro';
+            showFeedback.value = false; gameFinished.value = false;
+            selections.value = { habitat: null, food: null, teeth: null };
+        };
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const playTone = (freq, dur, type='triangle') => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type; osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        };
+
+        const playSuccessSound = () => {
+            playTone(600, 0.1); setTimeout(() => playTone(800, 0.1), 80); setTimeout(() => playTone(1000, 0.2), 160);
+        };
+        const playErrorSound = () => { playTone(300, 0.2, 'sawtooth'); setTimeout(() => playTone(200, 0.3, 'sawtooth'), 150); };
+
+        onMounted(() => window.addEventListener('mousemove', handleMouseMove));
+        onUnmounted(() => window.removeEventListener('mousemove', handleMouseMove));
+
+        return { gameState, score, currentStep, currentAnimal, animalData, categories, selections, isSelectionComplete, showFeedback, gameFinished, mouseCoords, parallaxStyle, selectOption, getOptionClass, checkAnswer, nextAnimal, resetGame };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

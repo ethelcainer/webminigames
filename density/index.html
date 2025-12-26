@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Density Diver | Master Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/Draggable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --water-color: rgba(56, 189, 248, 0.6);
+        }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at center, #f0f9ff 0%, #bae6fd 100%);
+            overflow: hidden;
+            touch-action: none;
+        }
+        .font-bubble { font-family: 'Fredoka', sans-serif; }
+        
+        #glass-tank {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%);
+            border: 6px solid #f8fafc;
+            border-top: none;
+            border-radius: 0 0 50px 50px;
+            box-shadow: inset 0 20px 50px rgba(0,0,0,0.05), 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden; 
+            pointer-events: auto; 
+            z-index: 10; 
+            position: relative;
+        }
+
+        #water {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 70%;
+            background: var(--water-color);
+            transition: background 0.5s ease;
+            pointer-events: none;
+        }
+
+        .tank-floor {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 30px;
+            background: #fde68a;
+        }
+
+        .object-card {
+            cursor: grab;
+            filter: drop-shadow(0 6px 8px rgba(0,0,0,0.15));
+            z-index: 100; 
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.2s ease;
+        }
+        .object-card:active { cursor: grabbing; }
+
+        .object-card.in-tank {
+            position: absolute !important;
+            z-index: 5;
+        }
+
+        /* FIX: Hide label completely when in tank to fix positioning height */
+        .object-card.in-tank .item-label {
+            display: none;
+        }
+
+        .item-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-top: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            pointer-events: none;
+            background: rgba(0,0,0,0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .lab-bench {
+            background: #475569;
+            border-top: 8px solid #334155;
+            height: 180px;
+            box-shadow: 0 -10px 20px rgba(0,0,0,0.1);
+            padding: 0 30px;
+            overflow: visible; 
+            position: relative;
+            z-index: 50; 
+        }
+
+        .salt-particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .gauge-bar {
+            transition: height 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #info-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 3px solid #e0f2fe;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        }
+
+        @keyframes waveMove {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(-20px); }
+        }
+        .animate-wave { animation: waveMove 4s ease-in-out infinite; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <header class="p-4 text-center">
+        <h1 class="text-4xl md:text-5xl text-sky-800 font-bubble font-600 drop-shadow-sm">Density Diver</h1>
+        <div class="flex justify-center gap-4 mt-1">
+            <span class="bg-sky-200 text-sky-700 px-3 py-0.5 rounded-full font-bold text-xs shadow-sm">Standard 3 Science</span>
+            <span class="bg-amber-200 text-amber-700 px-3 py-0.5 rounded-full font-bold text-xs shadow-sm">Unit 7: Float & Sink</span>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-row items-center justify-center gap-8 lg:gap-12 px-12 relative">
+        <div class="flex flex-col items-center">
+            <div class="w-8 h-48 bg-slate-200 rounded-full border-4 border-white shadow-inner relative overflow-hidden">
+                <div id="gauge-fill" class="gauge-bar absolute bottom-0 w-full bg-gradient-to-t from-sky-400 to-indigo-400 h-[20%]"></div>
+            </div>
+            <p class="text-[10px] font-bold text-sky-600 mt-2 uppercase tracking-widest">Saltiness</p>
+        </div>
+
+        <div class="relative w-full max-w-xl h-[400px]">
+            <div id="glass-tank" class="relative w-full h-full">
+                <div id="item-layer" class="absolute inset-0 pointer-events-none"></div>
+                <div id="water">
+                    <div class="absolute -top-4 left-0 w-[120%] h-8 opacity-30 animate-wave">
+                        <svg viewBox="0 0 800 100" preserveAspectRatio="none" class="w-full h-full fill-white">
+                            <path d="M0,50 C150,100 350,0 500,50 C650,100 850,0 1000,50 L1000,100 L0,100 Z"></path>
+                        </svg>
+                    </div>
+                    <div id="bubble-deck"></div>
+                    <div class="tank-floor"></div>
+                </div>
+            </div>
+
+            <div id="salt-shaker" class="absolute -right-12 top-0 cursor-pointer group z-[60]">
+                <div class="relative transform group-hover:-rotate-45 transition-transform duration-500">
+                    <svg width="60" height="90" viewBox="0 0 60 90">
+                        <rect x="10" y="25" width="40" height="60" rx="8" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+                        <rect x="15" y="5" width="30" height="20" rx="4" fill="#64748b"/>
+                        <circle cx="22" cy="12" r="2" fill="white"/><circle cx="30" cy="12" r="2" fill="white"/><circle cx="38" cy="12" r="2" fill="white"/>
+                        <text x="30" y="65" text-anchor="middle" font-size="10" font-family="Arial" fill="#64748b" font-weight="bold">SALT</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div id="info-panel" class="w-80 h-[380px] rounded-3xl p-6 flex flex-col items-center text-center">
+            <div class="w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mb-4 border-2 border-sky-200">
+                <svg id="info-icon" class="text-sky-500 w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 id="info-title" class="text-xl font-bubble text-sky-800 mb-2">Ready?</h3>
+            <p id="info-body" class="text-sm text-slate-600 leading-relaxed">Drag an item into the beaker to see if it sinks or floats!</p>
+            <div id="density-stat" class="mt-auto pt-4 border-t border-slate-200 w-full hidden">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Density Level</p>
+                <div id="density-dots" class="flex justify-center gap-1 mt-2"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="shelf" class="lab-bench w-full flex items-center justify-center gap-8 relative flex-wrap">
+        <div class="absolute -top-10 left-10 bg-orange-400 text-white px-4 py-1 rounded-t-lg font-bold text-sm shadow-md">Item Shelf</div>
+        
+        <div class="object-card" data-density="0.4" id="cork" data-name="Cork">
+            <svg width="65" height="65" viewBox="0 0 100 100"><rect x="25" y="20" width="50" height="60" rx="10" fill="#a8a29e" stroke="#78716c" stroke-width="3"/></svg>
+            <span class="item-label">Cork</span>
+        </div>
+        <div class="object-card" data-density="1.3" id="egg" data-name="Egg">
+            <svg width="60" height="75" viewBox="0 0 100 120"><path d="M50 10 C25 10 10 50 10 80 A40 40 0 0 0 90 80 C90 50 75 10 50 10 Z" fill="#fffcf0" stroke="#eab308" stroke-width="3"/></svg>
+            <span class="item-label">Egg</span>
+        </div>
+        <div class="object-card" data-density="0.7" id="wood" data-name="Wood">
+            <svg width="90" height="55" viewBox="0 0 120 60"><rect x="10" y="10" width="100" height="40" rx="4" fill="#92400e" stroke="#451a03" stroke-width="3"/></svg>
+            <span class="item-label">Wood</span>
+        </div>
+        <div class="object-card" data-density="3.0" id="coin" data-name="Coin">
+            <svg width="60" height="60" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#facc15" stroke="#a16207" stroke-width="4"/><text x="50" y="65" text-anchor="middle" font-family="Fredoka" font-weight="600" fill="#a16207" font-size="40">$</text></svg>
+            <span class="item-label">Coin</span>
+        </div>
+        <div class="object-card" data-density="0.1" id="pingpong" data-name="Ping Pong Ball">
+            <svg width="55" height="55" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#fff" stroke="#e2e8f0" stroke-width="2"/></svg>
+            <span class="item-label">Ball</span>
+        </div>
+        <div class="object-card" data-density="0.8" id="apple" data-name="Apple">
+            <svg width="65" height="65" viewBox="0 0 100 100"><path d="M50 90 C20 90 10 60 10 45 C10 25 30 15 50 25 C70 15 90 25 90 45 C90 60 80 90 50 90 Z" fill="#ef4444" stroke="#b91c1c" stroke-width="3"/></svg>
+            <span class="item-label">Apple</span>
+        </div>
+        <div class="object-card" data-density="4.5" id="key" data-name="Metal Key">
+            <svg width="75" height="75" viewBox="0 0 100 100"><circle cx="30" cy="30" r="15" fill="none" stroke="#94a3b8" stroke-width="5"/><rect x="45" y="25" width="40" height="10" fill="#94a3b8"/></svg>
+            <span class="item-label">Key</span>
+        </div>
+        <div class="object-card" data-density="2.2" id="marble" data-name="Marble">
+            <svg width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#818cf8" stroke="#4f46e5" stroke-width="3"/></svg>
+            <span class="item-label">Marble</span>
+        </div>
+        <div class="object-card" data-density="1.6" id="eraser" data-name="Eraser">
+            <svg width="80" height="55" viewBox="0 0 100 60"><rect x="10" y="10" width="80" height="40" fill="#fda4af" stroke="#e11d48" stroke-width="3"/></svg>
+            <span class="item-label">Eraser</span>
+        </div>
+
+        <button onclick="resetGame()" class="absolute right-6 bottom-4 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 px-6 rounded-xl shadow-lg transition-all active:scale-95 text-xs uppercase tracking-widest">Reset Lab</button>
+    </div>
+
+    <div id="toast" class="fixed bottom-44 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none scale-50 z-[200] bg-white border-b-4 border-sky-500 px-6 py-2 rounded-2xl shadow-2xl">
+        <span class="text-lg font-bold text-sky-800">Nice!</span>
+    </div>
+
+    <script>
+        gsap.registerPlugin(Draggable);
+
+        let waterDensity = 1.0;
+        const tank = document.getElementById('glass-tank');
+        const itemLayer = document.getElementById('item-layer');
+        const shelf = document.getElementById('shelf');
+        const waterElement = document.getElementById('water');
+        const infoTitle = document.getElementById('info-title');
+        const infoBody = document.getElementById('info-body');
+        const densityStat = document.getElementById('density-stat');
+        const densityDots = document.getElementById('density-dots');
+        
+        let activeItems = [];
+
+        const itemData = {
+            "cork": "Cork is made of air-filled cells. It's much <b>less dense</b> than water!",
+            "egg": "An egg is <b>more dense</b> than fresh water, but salt can change that!",
+            "wood": "Wood has air in its fibers, making it float on the surface.",
+            "coin": "Coins are made of heavy metal atoms packed tightly. They sink fast!",
+            "pingpong": "Ping pong balls are mostly air! They bob right on top.",
+            "apple": "Apples are 25% air, which is why they float in water!",
+            "key": "Metal keys are very dense and will always sink to the bottom.",
+            "marble": "Marbles are made of glass, which is denser than water.",
+            "eraser": "Erasers are made of dense rubber, so they sink down."
+        };
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(freq, type = 'sine', duration = 0.1) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        Draggable.create(".object-card", {
+            type: "x,y",
+            zIndexBoost: true,
+            onDragStart: function() {
+                gsap.to(this.target, { scale: 1.1, rotation: 5, duration: 0.2 });
+                gsap.to(this.target.querySelector('.item-label'), { opacity: 0, duration: 0.2 });
+                playSound(400, 'triangle');
+            },
+            onRelease: function() {
+                const rect = tank.getBoundingClientRect();
+                const objRect = this.target.getBoundingClientRect();
+                const objCenterX = objRect.left + (objRect.width / 2);
+                const objCenterY = objRect.top + (objRect.height / 2);
+
+                if (objCenterX > rect.left && objCenterX < rect.right && objCenterY > rect.top && objCenterY < rect.bottom) {
+                    if (!activeItems.includes(this.target)) {
+                        activeItems.push(this.target);
+                        const currentRect = this.target.getBoundingClientRect();
+                        itemLayer.appendChild(this.target);
+                        this.target.classList.add('in-tank');
+                        gsap.set(this.target, {
+                            x: currentRect.left - rect.left,
+                            y: currentRect.top - rect.top,
+                            scale: 1, // Reset scale for physics calculation
+                            rotation: 0
+                        });
+                    }
+                    updatePhysics(this.target);
+                } else {
+                    returnToShelf(this.target);
+                }
+            }
+        });
+
+        function returnToShelf(el) {
+            activeItems = activeItems.filter(i => i !== el);
+            el.classList.remove('in-tank');
+            shelf.appendChild(el); 
+            gsap.killTweensOf(el);
+            gsap.to(el, { x: 0, y: 0, scale: 1, rotation: 0, duration: 0.6, ease: "back.out" });
+            gsap.to(el.querySelector('.item-label'), { opacity: 1, duration: 0.3 });
+        }
+
+        function updatePhysics(el) {
+            const objDensity = parseFloat(el.getAttribute('data-density'));
+            const id = el.id;
+            const name = el.getAttribute('data-name');
+            
+            const tankRect = tank.getBoundingClientRect();
+            const waterRect = waterElement.getBoundingClientRect();
+            const floorRect = document.querySelector('.tank-floor').getBoundingClientRect();
+            
+            // Fix: We only care about the SVG height now that label is display:none
+            const itemRect = el.getBoundingClientRect();
+            const waterLocalTop = waterRect.top - tankRect.top;
+            const floorLocalTop = floorRect.top - tankRect.top;
+
+            let finalY;
+            let status = "";
+
+            if (objDensity < waterDensity) {
+                // FLOAT MATH: Submerge based on density ratio
+                const submergeRatio = objDensity / waterDensity;
+                const submergeHeight = itemRect.height * submergeRatio;
+                // Position so that submergeHeight is below the waterline
+                finalY = waterLocalTop - (itemRect.height - submergeHeight);
+                status = "Floating";
+                
+                gsap.killTweensOf(el);
+                gsap.to(el, { 
+                    y: finalY, 
+                    duration: 1.2, 
+                    ease: "back.out(1.5)", 
+                    onComplete: () => {
+                        // Gentle bobbing effect
+                        gsap.to(el, { y: finalY + 5, duration: 2, repeat: -1, yoyo: true, ease: "sine.inOut" });
+                    }
+                });
+            } else {
+                // SINK MATH: Bottom of SVG touches the top of the floor
+                finalY = floorLocalTop - itemRect.height;
+                status = "Sinking";
+                
+                gsap.killTweensOf(el);
+                gsap.to(el, { y: finalY, rotation: Math.random() * 12 - 6, duration: 1.5, ease: "bounce.out" });
+            }
+
+            infoTitle.innerText = name;
+            infoBody.innerHTML = itemData[id] || "Testing density!";
+            infoBody.innerHTML += `<br><br><span class='text-sky-500 font-bold'>Status: ${status}!</span>`;
+            updateDensityDots(objDensity);
+            showToast(`${status}!`);
+            playSound(status === "Floating" ? 600 : 200, 'sine', 0.2);
+        }
+
+        function updateDensityDots(density) {
+            densityStat.classList.remove('hidden');
+            densityDots.innerHTML = '';
+            const count = Math.min(8, Math.ceil(density * 2));
+            for(let i=0; i<8; i++) {
+                const dot = document.createElement('div');
+                dot.className = `w-2 h-2 rounded-full ${i < count ? 'bg-indigo-400' : 'bg-slate-200'}`;
+                densityDots.appendChild(dot);
+            }
+        }
+
+        document.getElementById('salt-shaker').addEventListener('click', function() {
+            if (waterDensity >= 2.0) return;
+            waterDensity += 0.2;
+            updateGauge();
+            pourSaltAnimation();
+            activeItems.forEach(item => updatePhysics(item));
+            const blueIntensity = Math.min(255, 189 + (waterDensity * 20));
+            waterElement.style.backgroundColor = `rgba(56, ${blueIntensity}, 248, ${0.4 + (waterDensity * 0.1)})`;
+        });
+
+        function pourSaltAnimation() {
+            const shaker = document.getElementById('salt-shaker');
+            for(let i=0; i<8; i++) {
+                const p = document.createElement('div');
+                p.className = 'salt-particle';
+                document.body.appendChild(p);
+                const rect = shaker.getBoundingClientRect();
+                gsap.fromTo(p, { x: rect.left, y: rect.top + 40, opacity: 1 }, { 
+                    x: rect.left - 50 - Math.random() * 50, y: rect.top + 150, 
+                    opacity: 0, duration: 0.6, onComplete: () => p.remove() 
+                });
+            }
+        }
+
+        function updateGauge() {
+            const percent = ((waterDensity - 1.0) / 1.0) * 100 + 20;
+            gsap.to('#gauge-fill', { height: `${percent}%`, duration: 0.5 });
+        }
+
+        function showToast(text) {
+            const t = document.getElementById('toast');
+            t.querySelector('span').innerText = text;
+            gsap.fromTo(t, { opacity: 0, y: 10, scale: 0.8 }, { opacity: 1, y: 0, scale: 1, duration: 0.3 });
+            gsap.to(t, { opacity: 0, scale: 0.8, delay: 1.5, duration: 0.2 });
+        }
+
+        function resetGame() {
+            waterDensity = 1.0;
+            updateGauge();
+            waterElement.style.backgroundColor = 'var(--water-color)';
+            [...activeItems].forEach(item => returnToShelf(item));
+            activeItems = [];
+            infoTitle.innerText = "Lab Reset";
+            infoBody.innerText = "Drag an item to begin!";
+            densityStat.classList.add('hidden');
+        }
+
+        setInterval(() => {
+            const b = document.createElement('div');
+            b.className = 'absolute bg-white/20 rounded-full pointer-events-none';
+            const size = Math.random() * 8 + 4;
+            b.style.width = size + 'px'; b.style.height = size + 'px';
+            b.style.left = Math.random() * 100 + '%'; b.style.bottom = '0';
+            document.getElementById('bubble-deck').appendChild(b);
+            gsap.to(b, { y: -300, opacity: 0, duration: 3, onComplete: () => b.remove() });
+        }, 1500);
+    </script>
+</body>
+</html>
