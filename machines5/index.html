@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>32-Bit Machine Sort: Cyber Edition (Enhanced)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-color: #1e293b;
+            --accent-cyan: #22d3ee;
+            --border-color: #334155;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: var(--bg-color);
+            color: #fff;
+            overflow: hidden;
+            image-rendering: pixelated;
+        }
+
+        .pixel-border-slim {
+            box-shadow: 0 -2px 0 0 #000, 0 2px 0 0 #000, -2px 0 0 0 #000, 2px 0 0 0 #000;
+            background: var(--panel-color);
+        }
+
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .conveyor-belt {
+            background: repeating-linear-gradient(90deg, #334155, #334155 60px, #1e293b 60px, #1e293b 120px);
+            height: 60px;
+            width: 100%;
+            border-top: 4px solid #000;
+            border-bottom: 4px solid #000;
+            animation: moveBelt 2s linear infinite;
+        }
+        @keyframes moveBelt { from { background-position: 0 0; } to { background-position: 120px 0; } }
+
+        .basket-btn {
+            transition: all 0.1s;
+            cursor: pointer;
+            flex: 1; 
+            margin-bottom: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(255,255,255,0.1);
+            z-index: 5;
+        }
+        .basket-btn:hover {
+            filter: brightness(1.2);
+            transform: scale(1.02);
+            border-color: #fff;
+        }
+
+        .item-sprite {
+            width: 280px; 
+            height: 280px;
+            shape-rendering: crispEdges;
+            position: absolute;
+            bottom: -20px; /* Sits ON the belt */
+            z-index: 0;
+        }
+
+        .game-text { font-size: 11px; line-height: 1.8; }
+        .label-text { font-size: 9px; color: var(--accent-cyan); }
+
+        #fact-box {
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .bg {
+            z-index: 3;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <div class="scanlines"></div>
+
+    <div id="start-screen" class="fixed inset-0 flex flex-col items-center justify-center p-10 text-center bg-slate-900 z-[200]">
+        <h1 class="text-3xl text-cyan-400 mb-10 tracking-tighter">MACHINE<br>LAB V.2</h1>
+        <div class="pixel-border-slim p-8 max-w-lg">
+            <p class="game-text mb-8">SORT THE MACHINES BEFORE THEY REACH THE END OF THE BELT!</p>
+            <button onclick="startGame()" class="bg-pink-600 px-8 py-4 text-sm hover:bg-pink-500 border-b-4 border-pink-900">INITIALIZE_SYSTEM</button>
+        </div>
+    </div>
+
+    <div class="p-4 flex justify-between items-center bg-slate-950 border-b-2 border-black z-10">
+        <div class="flex flex-col gap-1">
+            <span class="label-text">CORE_INTEGRITY</span>
+            <div id="lives-container" class="flex gap-2"></div>
+        </div>
+        <div class="text-right">
+            <div class="label-text">UNITS_PROCESSED</div>
+            <div id="score-display" class="text-xl text-yellow-400">0/10</div>
+        </div>
+    </div>
+
+    <div class="flex flex-1 overflow-hidden">
+        <div class="flex-1 relative flex flex-col bg-slate-900">
+            <div class="absolute top-8 left-8 right-8 h-[30%] p-6 pixel-border-slim border-l-4 border-l-cyan-500 z-20 bg-slate-900/90">
+                <div class="label-text mb-3 animate-pulse">>> DEEP_SCAN_ANALYSIS...</div>
+                <div id="fact-box" class="game-text text-emerald-400">WAITING FOR NEXT UNIT...</div>
+            </div>
+
+            <div id="stage" class="flex-1 relative overflow-visible">
+                </div>
+            
+            <div class="conveyor-belt"></div>
+            <div class="h-10 bg-slate-950 flex items-center px-6">
+                <span class="label-text">BELT SPEED: <span class="text-green-500">STABLE</span></span>
+            </div>
+        </div>
+
+        <div class="w-72 bg-slate-950 border-l-2 border-black p-4 flex flex-col" id="basket-zone">
+        </div>
+    </div>
+
+    <div id="end-screen" class="fixed inset-0 bg-black/95 z-[300] hidden flex flex-col items-center justify-center">
+        <h2 id="end-title" class="text-2xl text-yellow-400 mb-8 uppercase"></h2>
+        <div class="pixel-border-slim p-10 text-center border-t-4 border-blue-500">
+            <p id="end-msg" class="mb-8 game-text"></p>
+            <button onclick="location.reload()" class="bg-cyan-600 hover:bg-cyan-500 px-8 py-4 text-xs">REBOOT_OS</button>
+        </div>
+    </div>
+
+    <script>
+        const TYPES = {
+            LEVER: { name: 'LEVER', color: '#ff4d6d', desc: "This machine uses a rigid bar and a pivot point called a fulcrum. It allows you to lift heavy loads or apply pressure with much less effort than using your hands alone." },
+            SLOPE: { name: 'SLOPE', color: '#38b000', desc: "An inclined plane or tilted surface. By moving an object along this angled path, you can reach a higher elevation without having to lift the object vertically." },
+            PULLEY: { name: 'PULLEY', color: '#4cc9f0', desc: "A grooved wheel combined with a rope or cable. It changes the direction of the force applied, making it much easier to pull heavy buckets or crates upward." },
+            WEDGE: { name: 'WEDGE', color: '#f72585', desc: "Consists of two inclined planes joined together. This machine is thick at one end and tapers to a sharp edge, designed specifically for splitting or cutting materials apart." },
+            SCREW: { name: 'SCREW', color: '#7209b7', desc: "Basically an inclined plane wrapped around a central cylinder. It converts rotational motion into linear force, allowing it to hold things tightly or lift water." },
+            WHEEL: { name: 'WHEEL & AXLE', color: '#f97316', desc: "Features a larger circular wheel attached to a smaller central shaft. This setup reduces friction and allows for easy transportation or turning of heavy mechanisms." }
+        };
+
+        const ITEMS_DB = [
+            { name: "INDUSTRIAL SCISSORS", type: "LEVER", svg: `
+                <path d="M16 4 L8 20" stroke="#94a3b8" stroke-width="2"/>
+                <path d="M8 4 L16 20" stroke="#94a3b8" stroke-width="2"/>
+                <circle cx="12" cy="12" r="1" fill="#fff"/>
+                <circle cx="7" cy="20" r="3" fill="none" stroke="#ff4d6d" stroke-width="2"/>
+                <circle cx="17" cy="20" r="3" fill="none" stroke="#ff4d6d" stroke-width="2"/>` },
+            { name: "HEAVY LOADING RAMP", type: "SLOPE", svg: `<path d="M2 22 L22 22 L22 10 Z" fill="#64748b"/><rect x="2" y="22" width="20" height="2" fill="#334155"/>` },
+            { name: "DEEP WELL PULLEY", type: "PULLEY", svg: `<circle cx="12" cy="8" r="5" fill="none" stroke="#94a3b8" stroke-width="2"/><path d="M12 2 L12 13" stroke="#475569" stroke-width="1"/><rect x="8" y="16" width="8" height="6" fill="#4cc9f0"/>` },
+            { name: "REINFORCED AXE", type: "WEDGE", svg: `<rect x="11" y="4" width="2" height="18" fill="#451a03"/><path d="M13 4 L21 2 L21 10 L13 8 Z" fill="#cbd5e1"/>` },
+            { name: "THREADED BOLT", type: "SCREW", svg: `<rect x="4" y="2" width="16" height="5" fill="#475569"/><rect x="9" y="7" width="6" height="15" fill="#94a3b8"/><path d="M9 10 h6 M9 13 h6 M9 16 h6 M9 19 h6" stroke="#334155" stroke-width="1"/>` },
+            { name: "PRECISION KNOB", type: "WHEEL", svg: `<circle cx="12" cy="12" r="9" fill="#eab308"/><circle cx="12" cy="12" r="3" fill="#854d0e"/><rect x="14" y="9" width="2" height="2" fill="#fef08a"/>` },
+            { name: "MECHANICAL SEESAW", type: "LEVER", svg: `
+                <rect x="2" y="13" width="20" height="2" fill="#ff4d6d"/>
+                <path d="M9 22 L12 15 L15 22 Z" fill="#fff"/>
+                <rect x="3" y="10" width="3" height="3" fill="#64748b"/>
+                <rect x="18" y="10" width="3" height="3" fill="#64748b"/>` },
+            { name: "STEEL WATER SLIDE", type: "SLOPE", svg: `<path d="M4 4 V22 H22" stroke="#38b000" fill="none" stroke-width="2"/><path d="M4 4 L22 22" stroke="#38b000" stroke-width="3"/>` },
+            { name: "WAREHOUSE HOIST", type: "PULLEY", svg: `<rect x="4" y="2" width="16" height="2" fill="#1e293b"/><circle cx="12" cy="8" r="4" fill="none" stroke="#94a3b8" stroke-width="2"/><path d="M12 12 V19" stroke="#fff" stroke-width="1"/><rect x="9" y="19" width="6" height="3" fill="#4cc9f0"/>` },
+            { name: "CHEF'S KNIFE", type: "WEDGE", svg: `<rect x="2" y="12" width="8" height="3" fill="#1e1b4b"/><path d="M10 12 L22 10 L22 14 L10 14 Z" fill="#e2e8f0"/>` }
+        ];
+
+        let score = 0;
+        let lives = 5;
+        let gameActive = false;
+        let typeInterval;
+        let activeTween;
+        let itemsPool = [];
+        
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(freq, duration) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function typeText(text) {
+            const target = document.getElementById('fact-box');
+            target.textContent = "";
+            let i = 0;
+            clearInterval(typeInterval);
+            const soundLimit = Math.floor(text.length / 2);
+            typeInterval = setInterval(() => {
+                if (i < text.length) {
+                    target.textContent += text[i];
+                    if (text[i] !== " " && i < soundLimit) playSound(200 + (Math.random() * 50), 0.05);
+                    i++;
+                } else { clearInterval(typeInterval); }
+            }, 25);
+        }
+
+        function startGame() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            document.getElementById('start-screen').classList.add('hidden');
+            gameActive = true;
+            score = 0;
+            lives = 5;
+            itemsPool = [...ITEMS_DB].sort(() => Math.random() - 0.5);
+            initUI();
+            spawnNextItem();
+        }
+
+        function initUI() {
+            const lContainer = document.getElementById('lives-container');
+            lContainer.innerHTML = '';
+            for(let i=0; i<5; i++) {
+                lContainer.innerHTML += `<svg id="h-${i}" class="w-6 h-6 fill-red-500" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+            }
+
+            const bZone = document.getElementById('basket-zone');
+            bZone.innerHTML = '';
+            Object.keys(TYPES).forEach(key => {
+                const btn = document.createElement('div');
+                btn.className = 'basket-btn pixel-border-slim';
+                btn.style.borderLeft = `6px solid ${TYPES[key].color}`;
+                btn.innerHTML = `
+                    <span class="label-text" style="color:${TYPES[key].color}">${TYPES[key].name}</span>
+                    <span class="text-[6px] text-slate-500 mt-1">PROCESS_BIN</span>
+                `;
+                btn.onclick = () => handleSort(key);
+                bZone.appendChild(btn);
+            });
+        }
+
+        function spawnNextItem() {
+            if (!gameActive) return;
+            if (itemsPool.length === 0) {
+                endGame(true);
+                return;
+            }
+
+            const itemData = itemsPool.pop();
+            const stage = document.getElementById('stage');
+            
+            const itemEl = document.createElement('div');
+            itemEl.id = "active-unit";
+            itemEl.className = "item-sprite flex flex-col items-center justify-end";
+            itemEl.dataset.type = itemData.type;
+            itemEl.innerHTML = `
+                <svg viewBox="0 0 24 24" class="w-full h-full">${itemData.svg}</svg>
+                <div class="bg-black/80 px-4 py-1 border-2 border-cyan-500 text-[9px] mb-2 uppercase">${itemData.name}</div>
+            `;
+            stage.appendChild(itemEl);
+
+            typeText(TYPES[itemData.type].desc);
+
+            activeTween = gsap.fromTo(itemEl, { x: -300 }, { 
+                x: window.innerWidth, 
+                duration: 20, 
+                ease: "none",
+                onComplete: () => {
+                    loseLife();
+                    itemEl.remove();
+                    spawnNextItem();
+                }
+            });
+        }
+
+        function handleSort(typeKey) {
+            const currentItem = document.getElementById('active-unit');
+            if (!gameActive || !currentItem) return;
+
+            const correctType = currentItem.dataset.type;
+
+            if (correctType === typeKey) {
+                score++;
+                document.getElementById('score-display').innerText = `${score}/10`;
+                playSound(800, 0.2);
+                
+                activeTween.kill();
+                gsap.to(currentItem, { 
+                    y: -500, 
+                    rotation: 45, 
+                    opacity: 0, 
+                    duration: 0.4, 
+                    onComplete: () => {
+                        currentItem.remove();
+                        spawnNextItem();
+                    }
+                });
+            } else {
+                loseLife();
+            }
+        }
+
+        function loseLife() {
+            lives--;
+            playSound(100, 0.5);
+            const heart = document.getElementById(`h-${lives}`);
+            if (heart) heart.classList.replace('fill-red-500', 'fill-slate-800');
+            
+            gsap.to("#stage", { x: 10, duration: 0.05, repeat: 5, yoyo: true });
+            
+            if (lives <= 0) endGame(false);
+        }
+
+        function endGame(win) {
+            gameActive = false;
+            if (activeTween) activeTween.kill();
+            const screen = document.getElementById('end-screen');
+            screen.classList.remove('hidden');
+            
+            const title = document.getElementById('end-title');
+            title.innerText = win ? "BATCH_COMPLETE" : "SYSTEM_HALTED";
+            title.style.color = win ? "#4ade80" : "#ef4444";
+            
+            document.getElementById('end-msg').innerText = win ? 
+                `ALL UNITS SORTED SUCCESSFULLY.\nEFFICIENCY: 100%` : 
+                `CORE FAILURE DETECTED.\nUNITS PROCESSED: ${score}/10`;
+        }
+    </script>
+</body>
+</html>

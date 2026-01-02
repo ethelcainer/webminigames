@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thermal Engineer: Master Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Fredoka', sans-serif; 
+            background-color: #f8fafc; 
+            background-image: 
+                /* Thicker Red Margin Line (Increased to 3px) */
+                linear-gradient(90deg, transparent 78px, #fca5a5 78px, #fca5a5 81px, transparent 81px),
+                /* Thicker Blue Notebook Lines (Increased to 2px) */
+                linear-gradient(#e2e8f0 3px, transparent 3px);
+            background-size: 100% 100%, 100% 40px;
+            overflow: hidden; 
+            user-select: none;
+            animation: scrollPaper 20s linear infinite;
+        }
+        
+        .bubbly-border { 
+            border: 6px solid #1e293b; 
+            box-shadow: 12px 12px 0px rgba(30, 41, 59, 0.2); 
+            background: white;
+        }
+        
+        .ray-btn {
+            transition: all 0.1s;
+            border: 4px solid #1e293b;
+            box-shadow: 0 6px 0 #1e293b;
+        }
+        .ray-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #1e293b; }
+
+        /* Smooth UI Overlays */
+        .glass-overlay {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            transition: opacity 0.4s ease;
+        }
+
+        @keyframes success-pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: success-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes wobble {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(1deg); }
+            75% { transform: rotate(-1deg); }
+        }
+        .unstable-shake { animation: wobble 0.1s infinite; filter: drop-shadow(0 0 8px #ef4444); }
+
+        .hidden-ui { opacity: 0; pointer-events: none; visibility: hidden; }
+        .visible-ui { opacity: 1; pointer-events: auto; visibility: visible; }
+
+        @keyframes scrollPaper {
+            from {
+                background-position: 0 0, 0 0;
+            }
+            to {
+                background-position: 0 0, 0 1000px;
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <main class="max-w-4xl w-full bg-white bubbly-border rounded-[40px] relative overflow-hidden">
+        
+        <div class="flex justify-between items-center p-6 border-b-4 border-slate-800 bg-slate-50">
+            <div>
+                <span class="text-xs font-black uppercase text-slate-400 block tracking-widest">Lab Station 06</span>
+                <h2 id="level-name" class="text-2xl font-bold text-slate-800">Booting Up...</h2>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span id="level-counter" class="text-sm font-black bg-slate-800 text-white px-4 py-1 rounded-full">-- / --</span>
+            </div>
+        </div>
+
+        <div id="canvas" class="h-80 relative flex items-center justify-center bg-sky-50 transition-colors duration-500 overflow-hidden">
+            <div id="object-root" class="transition-all duration-300 transform scale-150">
+                </div>
+
+            <div id="situation-box" class="absolute top-4 inset-x-4 flex justify-center">
+                <div class="bg-white px-6 py-2 rounded-2xl border-2 border-slate-800 font-bold text-slate-700 shadow-sm text-center max-w-sm">
+                    Waiting for instructions...
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6 space-y-6 bg-white border-t-4 border-slate-800">
+            <div class="flex items-center space-x-4">
+                <div class="flex-1">
+                    <div class="flex justify-between mb-1 text-xs font-black text-slate-500">
+                        <span>STABILITY</span>
+                        <span id="stability-text">100%</span>
+                    </div>
+                    <div class="h-6 bg-slate-100 rounded-full border-2 border-slate-800 overflow-hidden p-1">
+                        <div id="stability-bar" class="h-full bg-green-400 rounded-full transition-all duration-150" style="width: 100%"></div>
+                    </div>
+                </div>
+                <button id="hint-trigger" class="px-6 py-2 bg-yellow-100 border-2 border-slate-800 rounded-xl font-bold text-slate-700 hover:bg-yellow-200">HINT</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <button id="btn-cool" class="ray-btn py-8 bg-blue-400 rounded-3xl flex flex-col items-center justify-center group">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M13 10V3L4 14h7v7l9-11h-7z" transform="rotate(180 12 12)"/></svg>
+                    <span class="text-white font-black text-xl mt-1">FREEZE RAY</span>
+                </button>
+                <button id="btn-heat" class="ray-btn py-8 bg-rose-500 rounded-3xl flex flex-col items-center justify-center group">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span class="text-white font-black text-xl mt-1">HEAT RAY</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="start-screen" class="fixed inset-0 z-50 flex items-center justify-center glass-overlay">
+            <div class="max-w-md w-full bg-white bubbly-border p-10 text-center animate-pop">
+                <h1 class="text-5xl font-bold text-slate-800 mb-2">HEAT<br><span class="text-blue-500 underline decoration-yellow-400">ENGINEER</span></h1>
+                <p class="text-slate-500 font-medium mb-8">Apply thermal science to fix lab emergencies. Don't break the equipment!</p>
+                <button onclick="startGame()" class="w-full py-5 bg-yellow-400 text-slate-900 font-black text-2xl rounded-2xl border-4 border-slate-800 shadow-[0_6px_0_#1e293b] hover:bg-yellow-300">START MISSION</button>
+            </div>
+        </div>
+
+        <div id="success-screen" class="absolute inset-0 z-40 hidden-ui flex items-center justify-center bg-white/60 backdrop-blur-sm">
+            <div class="text-center animate-pop">
+                <div class="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center border-4 border-slate-800 mx-auto mb-4">
+                    <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="4" stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </div>
+                <h2 class="text-4xl font-black text-slate-800">WELL DONE!</h2>
+                <p class="text-slate-600 font-bold">Scientific Principle Applied.</p>
+            </div>
+        </div>
+
+        <div id="hint-modal" class="absolute inset-x-0 bottom-0 z-30 hidden-ui translate-y-full transition-all duration-300 p-6">
+            <div class="bg-yellow-50 border-4 border-yellow-400 rounded-3xl p-6 shadow-2xl">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-black text-yellow-700">LAB NOTE:</h3>
+                    <button id="hint-close" class="text-yellow-700 font-black">CLOSE X</button>
+                </div>
+                <p id="hint-text" class="text-yellow-800 font-bold leading-relaxed"></p>
+            </div>
+        </div>
+
+        <div id="end-screen" class="fixed inset-0 z-50 hidden flex items-center justify-center glass-overlay p-6">
+            <div class="max-w-md w-full bg-white bubbly-border p-10 text-center animate-pop">
+                <h2 id="end-title" class="text-4xl font-black mb-4">STATUS REPORT</h2>
+                <p id="end-msg" class="text-slate-600 mb-8 font-medium"></p>
+                <button onclick="location.reload()" class="w-full py-4 bg-blue-500 text-white font-black text-xl rounded-2xl border-4 border-slate-800 shadow-[0_6px_0_#1e293b]">RESTART SESSION</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let currentLvlIdx = 0;
+        let temp = 50;
+        let stability = 100;
+        let activeLevel = null;
+        let gameActive = false;
+        let isTransitioning = false;
+
+        const levelData = [
+            {
+                name: "The Stuck Ball",
+                desc: "Incident: The metal ball is wedged in the ring!",
+                hint: "Solid metals contract and get smaller when they lose heat. Try cooling it down.",
+                goal: (t) => t < 20,
+                svg: `<svg width="200" height="150" viewBox="0 0 200 150">
+                        <circle cx="100" cy="75" r="28" fill="none" stroke="#475569" stroke-width="8"/>
+                        <circle id="target-obj" cx="100" cy="75" r="30" fill="#94a3b8" stroke="#1e293b" stroke-width="2"/>
+                      </svg>`,
+                action: (t) => {
+                    const r = 28 + (t - 50) * 0.15;
+                    document.getElementById('target-obj').setAttribute('r', r);
+                }
+            },
+            {
+                name: "The Jammed Lid",
+                desc: "Incident: This metal jar lid is stuck tight!",
+                hint: "Heating the metal lid will make it expand and become looser on the jar.",
+                goal: (t) => t > 85,
+                svg: `<svg width="200" height="150" viewBox="0 0 200 150">
+                        <rect x="60" y="60" width="80" height="80" rx="10" fill="#93c5fd" opacity="0.4" stroke="#1e293b" stroke-width="2"/>
+                        <rect id="target-obj" x="55" y="45" width="90" height="20" rx="4" fill="#64748b" stroke="#1e293b" stroke-width="2"/>
+                      </svg>`,
+                action: (t) => {
+                    const w = 90 + (t - 50) * 0.3;
+                    const target = document.getElementById('target-obj');
+                    target.setAttribute('width', w);
+                    target.setAttribute('x', 100 - w/2);
+                }
+            },
+            {
+                name: "The Sagging Lines",
+                desc: "Incident: Cables are sagging too close to the ground!",
+                hint: "Cables will contract and tighten if they lose heat. Use the Freeze Ray!",
+                goal: (t) => t < 20,
+                svg: `<svg width="200" height="150" viewBox="0 0 200 150">
+                        <line x1="20" y1="120" x2="20" y2="40" stroke="#1e293b" stroke-width="4"/>
+                        <line x1="180" y1="120" x2="180" y2="40" stroke="#1e293b" stroke-width="4"/>
+                        <path id="target-obj" d="M20 50 Q100 120 180 50" fill="none" stroke="#1e293b" stroke-width="4"/>
+                      </svg>`,
+                action: (t) => {
+                    const sag = 85 + (t - 50) * 1.5;
+                    document.getElementById('target-obj').setAttribute('d', `M20 50 Q100 ${sag} 180 50`);
+                }
+            },
+            {
+                name: "The Buckled Tracks",
+                desc: "Incident: The train rails have warped from heat!",
+                hint: "Cooling the rails will make the metal contract back to its original shape.",
+                goal: (t) => t < 25,
+                svg: `<svg width="200" height="150" viewBox="0 0 200 150">
+                        <rect x="20" y="70" width="70" height="10" fill="#475569"/>
+                        <rect x="110" y="70" width="70" height="10" fill="#475569"/>
+                        <path id="target-obj" d="M90 70 Q100 40 110 70" fill="none" stroke="#94a3b8" stroke-width="10"/>
+                      </svg>`,
+                action: (t) => {
+                    const curve = 75 - (t - 20) * 0.8;
+                    document.getElementById('target-obj').setAttribute('d', `M90 75 Q100 ${curve} 110 75`);
+                }
+            },
+            {
+                name: "The Fire Meter",
+                desc: "Incident: The liquid in the sensor is too low!",
+                hint: "Liquids expand and rise when they gain heat. Make it hot!",
+                goal: (t) => t > 85,
+                svg: `<svg width="100" height="150" viewBox="0 0 100 150">
+                        <rect x="40" y="20" width="20" height="110" rx="10" fill="none" stroke="#1e293b" stroke-width="4"/>
+                        <circle cx="50" cy="130" r="15" fill="#ef4444" />
+                        <rect id="target-obj" x="44" y="120" width="12" height="0" fill="#ef4444" />
+                      </svg>`,
+                action: (t) => {
+                    const h = (t-10) * 1.1;
+                    const target = document.getElementById('target-obj');
+                    target.setAttribute('height', Math.max(0, h));
+                    target.setAttribute('y', 130 - h);
+                }
+            },
+            {
+                name: "The Dented Ball",
+                desc: "Incident: A ping pong ball has been crushed!",
+                hint: "Heat the ball! The air inside will expand and push the dent back out.",
+                goal: (t) => t > 80,
+                svg: `<svg width="150" height="150" viewBox="0 0 100 100">
+                        <path id="target-obj" d="M20 50 A30 30 0 1 1 80 50 Q65 50 50 50 Q35 50 20 50" fill="#f8fafc" stroke="#1e293b" stroke-width="2"/>
+                      </svg>`,
+                action: (t) => {
+                    const curve = 50 + (t - 50) * 0.6;
+                    document.getElementById('target-obj').setAttribute('d', `M20 50 A30 30 0 1 1 80 50 Q65 ${curve} 50 ${curve} Q35 ${curve} 20 50`);
+                }
+            },
+            {
+                name: "The Bridge Gap",
+                desc: "Incident: The bridge gaps have closed in the summer heat!",
+                hint: "Cool the bridge plates so they contract and restore the safety gap.",
+                goal: (t) => t < 20,
+                svg: `<svg width="200" height="150" viewBox="0 0 200 150">
+                        <rect x="0" y="70" width="98" height="20" fill="#475569"/>
+                        <rect id="target-obj" x="102" y="70" width="98" height="20" fill="#475569"/>
+                      </svg>`,
+                action: (t) => {
+                    const offset = 100 + (50 - t) * 0.3;
+                    document.getElementById('target-obj').setAttribute('x', offset);
+                }
+            },
+            {
+                name: "Storage Crisis",
+                desc: "Incident: This gas balloon won't fit in the locker!",
+                hint: "Gases contract significantly when cooled. Use the Freeze Ray!",
+                goal: (t) => t < 15,
+                svg: `<svg width="150" height="150" viewBox="0 0 100 100">
+                        <rect x="20" y="20" width="60" height="60" fill="none" stroke="#1e293b" stroke-dasharray="4"/>
+                        <circle id="target-obj" cx="50" cy="50" r="35" fill="#f472b6" opacity="0.8"/>
+                      </svg>`,
+                action: (t) => {
+                    const r = 35 + (t - 50) * 0.3;
+                    document.getElementById('target-obj').setAttribute('r', Math.max(5, r));
+                }
+            },
+            {
+                name: "The Stuck Stopper",
+                desc: "Incident: The stopper is stuck in the bottle neck!",
+                hint: "Heat the bottle neck! It will expand and let go of the stopper.",
+                goal: (t) => t > 85,
+                svg: `<svg width="200" height="150" viewBox="0 0 200 150">
+                        <path id="target-obj" d="M85 60 L115 60 L110 120 L90 120 Z" fill="none" stroke="#1e293b" stroke-width="4"/>
+                        <rect x="92" y="40" width="16" height="30" fill="#94a3b8" />
+                      </svg>`,
+                action: (t) => {
+                    const expansion = (t - 50) * 0.2;
+                    document.getElementById('target-obj').setAttribute('d', `M${85-expansion} 60 L${115+expansion} 60 L110 120 L90 120 Z`);
+                }
+            },
+            {
+                name: "Frozen Nut",
+                desc: "Incident: The nut is too tight on the bolt!",
+                hint: "Heating the nut will cause it to expand and loosen its grip.",
+                goal: (t) => t > 85,
+                svg: `<svg width="150" height="150" viewBox="0 0 100 100">
+                        <rect x="45" y="20" width="10" height="60" fill="#94a3b8"/>
+                        <rect id="target-obj" x="40" y="40" width="20" height="10" rx="2" fill="#475569"/>
+                      </svg>`,
+                action: (t) => {
+                    const w = 20 + (t - 50) * 0.15;
+                    const target = document.getElementById('target-obj');
+                    target.setAttribute('width', w);
+                    target.setAttribute('x', 50 - w/2);
+                }
+            }
+        ];
+
+        let shuffled = [];
+
+        function playTone(f, type, d) {
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(f, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + d);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + d);
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden-ui');
+            shuffled = [...levelData].sort(() => Math.random() - 0.5);
+            currentLvlIdx = 0;
+            loadLevel();
+            gameActive = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function loadLevel() {
+            isTransitioning = false;
+            activeLevel = shuffled[currentLvlIdx];
+            temp = 50;
+            stability = 100;
+            
+            document.getElementById('success-screen').classList.add('hidden-ui');
+            document.getElementById('object-root').innerHTML = activeLevel.svg;
+            document.getElementById('level-name').innerText = activeLevel.name;
+            document.getElementById('situation-box').children[0].innerText = activeLevel.desc;
+            document.getElementById('level-counter').innerText = `${currentLvlIdx + 1} / ${shuffled.length}`;
+            document.getElementById('hint-text').innerText = activeLevel.hint;
+            document.getElementById('canvas').style.background = '#f0f9ff';
+        }
+
+        let isHeating = false;
+        let isCooling = false;
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            if (!isTransitioning) {
+                if (isHeating) { temp = Math.min(100, temp + 0.6); }
+                if (isCooling) { temp = Math.max(0, temp - 0.6); }
+
+                // Stability management
+                if (temp > 90 || temp < 10) {
+                    stability -= 0.6;
+                    document.getElementById('object-root').classList.add('unstable-shake');
+                    document.getElementById('canvas').style.backgroundColor = '#fee2e2';
+                } else {
+                    stability = Math.min(100, stability + 0.2);
+                    document.getElementById('object-root').classList.remove('unstable-shake');
+                    document.getElementById('canvas').style.backgroundColor = '#f0f9ff';
+                }
+
+                activeLevel.action(temp);
+
+                // Win check: must reach goal and then stop pressing
+                if (activeLevel.goal(temp) && !isHeating && !isCooling) {
+                    handleWin();
+                }
+
+                if (stability <= 0) { handleLoss("The extreme temperature caused a structural failure!"); }
+            }
+
+            document.getElementById('stability-bar').style.width = stability + '%';
+            document.getElementById('stability-text').innerText = Math.round(stability) + '%';
+            document.getElementById('stability-bar').style.background = stability < 30 ? '#ef4444' : '#4ade80';
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function handleWin() {
+            isTransitioning = true;
+            playTone(500, 'sine', 0.4);
+            document.getElementById('success-screen').classList.remove('hidden-ui');
+            
+            setTimeout(() => {
+                currentLvlIdx++;
+                if (currentLvlIdx < shuffled.length) loadLevel();
+                else showFinalScreen(true);
+            }, 1800);
+        }
+
+        function handleLoss(msg) {
+            gameActive = false;
+            playTone(150, 'sawtooth', 0.5);
+            showFinalScreen(false, msg);
+        }
+
+        function showFinalScreen(win, msg = "") {
+            const screen = document.getElementById('end-screen');
+            const title = document.getElementById('end-title');
+            const text = document.getElementById('end-msg');
+            
+            screen.classList.remove('hidden');
+            if (win) {
+                title.innerText = "MISSION SUCCESS";
+                title.classList.add('text-blue-500');
+                text.innerText = "Fantastic! You applied the principles of expansion and contraction to solve every crisis in the lab.";
+            } else {
+                title.innerText = "MISSION FAILED";
+                title.classList.add('text-red-500');
+                text.innerText = msg;
+            }
+        }
+
+        // CONTROL HANDLERS
+        const hBtn = document.getElementById('btn-heat');
+        const cBtn = document.getElementById('btn-cool');
+
+        const pressHeat = () => { if(!isTransitioning) { isHeating = true; playTone(200, 'sine', 0.1); } };
+        const pressCool = () => { if(!isTransitioning) { isCooling = true; playTone(800, 'sine', 0.1); } };
+        const releaseAll = () => { isHeating = false; isCooling = false; };
+
+        hBtn.onmousedown = hBtn.ontouchstart = pressHeat;
+        cBtn.onmousedown = cBtn.ontouchstart = pressCool;
+        window.onmouseup = window.ontouchend = releaseAll;
+
+        // HINT MODAL LOGIC
+        const hTrigger = document.getElementById('hint-trigger');
+        const hModal = document.getElementById('hint-modal');
+        const hClose = document.getElementById('hint-close');
+
+        hTrigger.onclick = () => {
+            hModal.classList.remove('hidden-ui', 'translate-y-full');
+            hModal.classList.add('translate-y-0');
+        };
+        hClose.onclick = () => {
+            hModal.classList.add('hidden-ui', 'translate-y-full');
+            hModal.classList.remove('translate-y-0');
+        };
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>8-Bit Star Hunter | Navigator Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pixel-bg: #0d0d21;
+            --pixel-ui: #2a2a5a;
+            --pixel-yellow: #f7e26b;
+            --pixel-white: #ffffff;
+            --pixel-green: #76c442;
+            --pixel-red: #e1282c;
+            --radar-bg: rgba(18, 18, 45, 0.8);
+            --header-h: 90px;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--pixel-bg);
+            font-family: 'Press Start 2P', cursive;
+            color: var(--pixel-white);
+            image-rendering: pixelated;
+            user-select: none;
+            cursor: none;
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.08) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 600;
+        }
+
+        .screen {
+            position: fixed;
+            inset: 0;
+            background: var(--pixel-bg);
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+        .btn {
+            margin-top: 30px;
+            padding: 15px 30px;
+            background: var(--pixel-green);
+            color: #000;
+            border: 4px solid #000;
+            cursor: pointer;
+            box-shadow: 6px 6px 0 #000;
+        }
+        .btn:active { box-shadow: 2px 2px 0 #000; transform: translate(4px, 4px); }
+
+        #ui-bar {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: var(--header-h);
+            background-color: var(--pixel-ui);
+            border-bottom: 4px solid #000;
+            z-index: 100;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            box-shadow: 0 4px 0 #1a1a3a;
+        }
+        #fact-box {
+            flex: 1;
+            margin: 0 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+        #fact-display {
+            font-size: 8px;
+            line-height: 1.6;
+            color: var(--pixel-yellow);
+            text-shadow: 2px 2px #000;
+            text-align: center;
+            max-width: 500px;
+        }
+        .ui-label { font-size: 10px; min-width: 150px; }
+        #score-display { text-align: right; color: var(--pixel-green); }
+
+        #viewport {
+            position: relative;
+            width: 100vw;
+            height: calc(100vh - var(--header-h));
+            margin-top: var(--header-h);
+            overflow: hidden;
+            cursor: grab;
+        }
+        #sky-canvas {
+            position: absolute;
+            width: 3000px;
+            height: 3000px;
+            background-color: #080818;
+            left: -1000px;
+            top: -1000px;
+            transition: opacity 0.8s ease-in-out;
+        }
+
+        #radar-container {
+            position: fixed;
+            bottom: 20px; right: 20px;
+            width: 150px; height: 150px;
+            background: var(--radar-bg);
+            border: 4px solid var(--pixel-ui);
+            z-index: 110;
+        }
+        #radar-viewport-box { position: absolute; border: 1px solid var(--pixel-green); background: rgba(118, 196, 66, 0.1); }
+        .radar-blip { position: absolute; width: 4px; height: 4px; background: var(--pixel-yellow); }
+
+        .pixel-star { position: absolute; width: 4px; height: 4px; background-color: #555588; }
+        .constellation-star {
+            position: absolute;
+            width: 8px; height: 8px;
+            background-color: var(--pixel-white);
+            border: 2px solid var(--pixel-ui);
+            z-index: 2;
+        }
+        #lines-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .constellation-line {
+            stroke: var(--pixel-yellow);
+            stroke-width: 4px;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+        }
+
+        /* Loading Screen */
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: var(--pixel-bg);
+            z-index: 400;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #load-bar-container {
+            width: 300px;
+            height: 30px;
+            border: 4px solid var(--pixel-white);
+            margin-top: 20px;
+            padding: 4px;
+        }
+        #load-fill { width: 0%; height: 100%; background: var(--pixel-green); }
+
+        /* --- Round 2 Moon Styles --- */
+        #moon-phase-round {
+            position: fixed;
+            inset: var(--header-h) 0 0 0;
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding-bottom: 120px;
+            pointer-events: none;
+        }
+        #moon-phase-round.active { display: flex; pointer-events: auto; }
+        
+        .moon-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 95%;
+        }
+
+        .moon-slot {
+            width: 130px; /* Increased size */
+            height: 180px; /* Increased size */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .placeholder {
+            width: 110px; /* Increased size */
+            height: 110px; /* Increased size */
+            border-radius: 4px;
+            border: 4px dashed #444;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: #444;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+        .placeholder.correct { border: 4px solid var(--pixel-green); background: rgba(118, 196, 66, 0.1); }
+        .lunar-date { font-size: 8px; color: var(--pixel-white); text-align: center; }
+
+        #moon-tray {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--pixel-ui);
+            padding: 20px;
+            border: 4px solid #000;
+            display: flex;
+            gap: 15px;
+            z-index: 210;
+            box-shadow: 0 -8px 0 rgba(0,0,0,0.3);
+        }
+        .moon-item {
+            width: 75px; /* Increased size */
+            height: 75px; /* Increased size */
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .moon-item:hover { transform: scale(1.1); }
+        .moon-item.selected { outline: 4px solid var(--pixel-yellow); outline-offset: 4px; }
+        .moon-item.placed { visibility: hidden; pointer-events: none; }
+
+        #retro-cursor { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 500; transform: translate(-50%, -50%); }
+        .cursor-shape {
+            width: 4px; height: 4px;
+            box-shadow: 0 -16px 0 var(--pixel-yellow), 0 -12px 0 var(--pixel-yellow), 0 16px 0 var(--pixel-yellow), 0 12px 0 var(--pixel-yellow), -16px 0 0 var(--pixel-yellow), -12px 0 0 var(--pixel-yellow), 16px 0 0 var(--pixel-yellow), 12px 0 0 var(--pixel-yellow), 0 0 0 2px var(--pixel-yellow);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div style="font-size: 12px;">SYNCHRONIZING LUNAR DATA...</div>
+        <div id="load-bar-container"><div id="load-fill"></div></div>
+    </div>
+
+    <div id="start-screen" class="screen">
+        <h1 style="color:var(--pixel-yellow); font-size: 20px;">STAR HUNTER V1.3</h1>
+        <p style="font-size: 10px; margin-top: 20px; line-height: 2;">ROUND 1: SCAN THE NIGHT SKY<br>FIND 4 ANCIENT CONSTELLATIONS<br>FOLLOW THE RADAR BLIPS</p>
+        <div class="btn" onclick="startGame()">INITIATE SCAN</div>
+    </div>
+
+    <div id="end-screen" class="screen" style="display:none;">
+        <h1 style="color:var(--pixel-green);">MISSION COMPLETE</h1>
+        <p id="final-stats" style="font-size: 10px; margin-top: 20px; line-height: 1.8;">ALL CONSTELLATIONS MAPPED.<br>LUNAR PHASES SYNCHRONIZED.</p>
+        <div class="btn" onclick="location.reload()">RE-SCAN</div>
+    </div>
+
+    <div id="ui-bar">
+        <div class="ui-label" id="round-title">ROUND 1: STARS</div>
+        <div id="fact-box">
+            <div id="fact-display">MOVE THE SCANNER TO LOCATE SIGNALS...</div>
+        </div>
+        <div id="score-display" class="ui-label">FOUND: 0/4</div>
+    </div>
+
+    <div id="viewport">
+        <div id="sky-canvas">
+            <svg id="lines-svg"></svg>
+        </div>
+        
+        <div id="moon-phase-round">
+            <h2 style="font-size: 14px; margin-bottom: 50px; color: var(--pixel-yellow); text-shadow: 3px 3px #000;">LUNAR PHASE MAPPER</h2>
+            <div class="moon-container" id="moon-slots"></div>
+            <div id="moon-tray"></div>
+        </div>
+    </div>
+
+    <div id="radar-container">
+        <div id="radar-viewport-box"></div>
+        <div id="radar-blips"></div>
+    </div>
+
+    <div id="retro-cursor"><div class="cursor-shape"></div></div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playRetroSound(type) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            if(type === 'found' || type === 'correct') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(110, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'success') {
+                // Happy arpeggio
+                const now = audioCtx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.type = 'square';
+                    o.frequency.value = f;
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    g.gain.setValueAtTime(0, now + i*0.1);
+                    g.gain.linearRampToValueAtTime(0.1, now + i*0.1 + 0.05);
+                    g.gain.linearRampToValueAtTime(0, now + i*0.1 + 0.4);
+                    o.start(now + i*0.1); o.stop(now + i*0.1 + 0.4);
+                });
+            }
+        }
+
+        const constellations = [
+            {
+                name: "BIDUK (Big Dipper)",
+                fact: "Forms a pattern of a water dipper. Used by travelers to locate the North Star (Polaris) to find the direction of NORTH.",
+                stars: [{x:100,y:50}, {x:200,y:70}, {x:280,y:110}, {x:350,y:160}, {x:450,y:200}, {x:420,y:270}, {x:350,y:230}],
+                lines: [[0,1], [1,2], [2,3], [3,4], [4,5], [5,6], [6,3]]
+            },
+            {
+                name: "PARI (Southern Cross)",
+                fact: "The smallest constellation. Forms a pattern of a kite. Its long axis always points towards the SOUTH.",
+                stars: [{x:200,y:500}, {x:200,y:100}, {x:100,y:250}, {x:300,y:280}, {x:240,y:380}],
+                lines: [[0,1], [2,3]]
+            },
+            {
+                name: "BELANTIK (Orion)",
+                fact: "Forms a pattern of a hunter with a belt. It is one of the few constellations used to find both NORTH and SOUTH.",
+                stars: [{x:200,y:300}, {x:400,y:330}, {x:230,y:700}, {x:430,y:680}, {x:270,y:480}, {x:310,y:470}, {x:350,y:460}, {x:300,y:230}, {x:160,y:150}, {x:120,y:50}, {x:200,y:50}, {x:510,y:180}, {x:540,y:250}, {x:550,y:330}, {x:540,y:410}, {x:510,y:480}],
+                lines: [[0,4], [1,6], [4,5], [5,6], [4,2], [6,3], [2,3], [0,7], [1,7], [0,8], [8,9], [8,10], [1,13], [11,12], [12,13], [13,14], [14,15]]
+            },
+            {
+                name: "SKORPION (Scorpion)",
+                fact: "Forms a pattern of a scorpion. Found in the southern sky, it was historically used to signal the arrival of the HARVEST SEASON.",
+                stars: [{x:400,y:200}, {x:520,y:70}, {x:550,y:150}, {x:550,y:250}, {x:370,y:250}, {x:300,y:450}, {x:280,y:550}, {x:300,y:620}, {x:220,y:650}, {x:120,y:640}, {x:80,y:580}, {x:120,y:520}, {x:160,y:490}],
+                lines: [[0,1], [0,2], [0,3], [0,4], [4,5], [5,6], [6,7], [7,8], [8,9], [9,10], [10,11], [11,12]]
+            }
+        ];
+
+        // Custom 8-Bit Styled Moon SVGs (Jagged edges)
+        const moonPhases = [
+            { id: 0, name: "New Moon", date: "Day 1", fact: "The side of the moon facing Earth is not lit. It looks completely dark.", svg: `<path d="M25,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L15,45 L15,40 L10,40 L10,35 L5,35 L5,15 L10,15 L10,10 L15,10 L15,5 Z" fill="#222"/>` },
+            { id: 1, name: "Waxing Crescent", date: "Day 3-4", fact: "A small sliver of the moon becomes visible from the right side.", svg: `<path d="M25,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L15,45 L15,40 L10,40 L10,35 L5,35 L5,15 L10,15 L10,10 L15,10 L15,5 Z" fill="#222"/><path d="M30,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L30,45 L30,40 L35,40 L35,10 L30,10 Z" fill="#fff"/>` },
+            { id: 2, name: "First Quarter", date: "Day 7-8", fact: "Half of the moon is visible. It looks like a 'D' shape.", svg: `<path d="M25,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L25,45 Z" fill="#fff"/><path d="M25,5 L15,5 L15,10 L10,10 L10,15 L5,15 L5,35 L10,35 L10,40 L15,40 L15,45 L25,45 Z" fill="#222"/>` },
+            { id: 3, name: "Waxing Gibbous", date: "Day 11-12", fact: "Most of the moon is lit, except for a small sliver on the left.", svg: `<path d="M25,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L15,45 L15,40 L10,40 L10,35 L5,35 L5,15 L10,15 L10,10 L15,10 L15,5 Z" fill="#fff"/><path d="M10,15 L15,15 L15,35 L10,35 Z" fill="#222"/>` },
+            { id: 4, name: "Full Moon", date: "Day 15", fact: "The entire side of the moon facing Earth is lit. It looks like a bright circle.", svg: `<path d="M25,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L15,45 L15,40 L10,40 L10,35 L5,35 L5,15 L10,15 L10,10 L15,10 L15,5 Z" fill="#fff"/>` },
+            { id: 5, name: "Waning Gibbous", date: "Day 18-19", fact: "The moon starts to shrink. A sliver on the right side goes dark.", svg: `<path d="M25,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L15,45 L15,40 L10,40 L10,35 L5,35 L5,15 L10,15 L10,10 L15,10 L15,5 Z" fill="#fff"/><path d="M35,15 L40,15 L40,35 L35,35 Z" fill="#222"/>` },
+            { id: 6, name: "Last Quarter", date: "Day 22-23", fact: "Half of the moon is visible again, but on the opposite side.", svg: `<path d="M25,5 L15,5 L15,10 L10,10 L10,15 L5,15 L5,35 L10,35 L10,40 L15,40 L15,45 L25,45 Z" fill="#fff"/><path d="M25,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L25,45 Z" fill="#222"/>` },
+            { id: 7, name: "Waning Crescent", date: "Day 26-27", fact: "Only a small sliver on the left remains before becoming a New Moon.", svg: `<path d="M25,5 L35,5 L35,10 L40,10 L40,15 L45,15 L45,35 L40,35 L40,40 L35,40 L35,45 L15,45 L15,40 L10,40 L10,35 L5,35 L5,15 L10,15 L10,10 L15,10 L15,5 Z" fill="#222"/><path d="M20,5 L15,5 L15,10 L10,10 L10,15 L5,15 L5,35 L10,35 L10,40 L15,40 L15,45 L20,45 L20,40 L15,40 L15,10 L20,10 Z" fill="#fff"/>` }
+        ];
+
+        let foundCount = 0;
+        let moonCorrectCount = 0;
+        let selectedMoon = null;
+        let currentRound = 1;
+        let constellationHitboxes = [];
+        const skyCanvas = document.getElementById('sky-canvas');
+        const linesSvg = document.getElementById('lines-svg');
+        const factDisplay = document.getElementById('fact-display');
+        const scoreDisplay = document.getElementById('score-display');
+        const radarBox = document.getElementById('radar-viewport-box');
+        const radarBlips = document.getElementById('radar-blips');
+
+        function startGame() {
+            gsap.to("#start-screen", { opacity: 0, duration: 0.5, onComplete: () => document.getElementById('start-screen').style.display = 'none' });
+            initGame();
+        }
+
+        function initGame() {
+            const scaleFactor = 0.6;
+            for(let i=0; i<600; i++) {
+                const star = document.createElement('div');
+                star.className = 'pixel-star';
+                star.style.left = Math.random() * 3000 + 'px';
+                star.style.top = Math.random() * 3000 + 'px';
+                skyCanvas.appendChild(star);
+                gsap.to(star, { opacity: 0.2, duration: 0.5 + Math.random(), repeat: -1, yoyo: true });
+            }
+
+            constellations.forEach((cData, index) => {
+                const qX = (index % 2) * 1500;
+                const qY = Math.floor(index / 2) * 1500;
+                const posX = qX + 300 + Math.random() * 800;
+                const posY = qY + 300 + Math.random() * 800;
+                
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                const absStars = [];
+
+                cData.stars.forEach((p, i) => {
+                    const absX = posX + (p.x * scaleFactor), absY = posY + (p.y * scaleFactor);
+                    absStars.push({x: absX, y: absY});
+                    minX = Math.min(minX, absX); maxX = Math.max(maxX, absX);
+                    minY = Math.min(minY, absY); maxY = Math.max(maxY, absY);
+
+                    const cStar = document.createElement('div');
+                    cStar.className = 'constellation-star';
+                    cStar.style.left = (absX - 4) + 'px'; cStar.style.top = (absY - 4) + 'px';
+                    skyCanvas.appendChild(cStar);
+                    gsap.to(cStar, { scale: 1.5, duration: 0.8, repeat: -1, yoyo: true });
+                });
+
+                cData.lines.forEach(pair => {
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", absStars[pair[0]].x); line.setAttribute("y1", absStars[pair[0]].y);
+                    line.setAttribute("x2", absStars[pair[1]].x); line.setAttribute("y2", absStars[pair[1]].y);
+                    line.setAttribute("class", `constellation-line line-group-${index}`);
+                    linesSvg.appendChild(line);
+                });
+
+                constellationHitboxes.push({
+                    id: index, data: cData, 
+                    bounds: { x: minX - 50, y: minY - 50, width: (maxX-minX) + 100, height: (maxY-minY) + 100 },
+                    found: false, centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2
+                });
+
+                const blip = document.createElement('div');
+                blip.className = 'radar-blip';
+                blip.id = `blip-${index}`;
+                blip.style.left = (constellationHitboxes[index].centerX / 3000 * 150) + 'px';
+                blip.style.top = (constellationHitboxes[index].centerY / 3000 * 150) + 'px';
+                radarBlips.appendChild(blip);
+            });
+            updateRadarViewport();
+        }
+
+        /* --- Round 2 Logic --- */
+        function triggerLoading() {
+            const loader = document.getElementById('loader');
+            loader.style.display = 'flex';
+            gsap.to("#load-fill", { width: "100%", duration: 2, ease: "power1.inOut", onComplete: () => {
+                loader.style.display = 'none';
+                startRound2();
+            }});
+        }
+
+        function startRound2() {
+            currentRound = 2;
+            document.getElementById('round-title').innerText = "ROUND 2: MOON PHASES";
+            scoreDisplay.innerText = "SORTED: 0/8";
+            factDisplay.innerText = "ALIGN THE PHASES OF THE MOON ACCORDING TO THE LUNAR CALENDAR!";
+            
+            // UI Cleanup
+            document.getElementById('radar-container').style.display = 'none';
+            // Stars visibility kept at 1.0 as requested
+            linesSvg.style.display = 'none'; // Remove constellation lines
+            document.querySelectorAll('.constellation-star').forEach(s => s.style.display = 'none');
+            
+            document.getElementById('moon-phase-round').classList.add('active');
+            
+            const slotsContainer = document.getElementById('moon-slots');
+            moonPhases.forEach(phase => {
+                const slot = document.createElement('div');
+                slot.className = 'moon-slot';
+                slot.innerHTML = `
+                    <div class="placeholder" id="slot-${phase.id}" onclick="placeMoon(${phase.id})">?</div>
+                    <div class="lunar-date">${phase.date}</div>
+                `;
+                slotsContainer.appendChild(slot);
+            });
+
+            const tray = document.getElementById('moon-tray');
+            const shuffledMoons = [...moonPhases].sort(() => Math.random() - 0.5);
+            shuffledMoons.forEach(phase => {
+                const item = document.createElement('div');
+                item.className = 'moon-item';
+                item.id = `tray-moon-${phase.id}`;
+                item.innerHTML = `<svg viewBox="0 0 50 50">${phase.svg}</svg>`;
+                item.onclick = () => selectMoon(phase);
+                tray.appendChild(item);
+            });
+        }
+
+        function selectMoon(phase) {
+            if(selectedMoon) document.getElementById(`tray-moon-${selectedMoon.id}`).classList.remove('selected');
+            selectedMoon = phase;
+            document.getElementById(`tray-moon-${phase.id}`).classList.add('selected');
+            factDisplay.innerText = `${phase.name}: ${phase.fact}`;
+        }
+
+        function placeMoon(slotId) {
+            if(!selectedMoon) return;
+            
+            if(selectedMoon.id === slotId) {
+                const slot = document.getElementById(`slot-${slotId}`);
+                slot.innerHTML = `<svg viewBox="0 0 50 50" style="width:100px;">${selectedMoon.svg}</svg>`;
+                slot.classList.add('correct');
+                document.getElementById(`tray-moon-${selectedMoon.id}`).classList.add('placed');
+                playRetroSound('correct');
+                moonCorrectCount++;
+                scoreDisplay.innerText = `SORTED: ${moonCorrectCount}/8`;
+                selectedMoon = null;
+                
+                if(moonCorrectCount === 8) {
+                    playRetroSound('success');
+                    factDisplay.innerText = "LUNAR CYCLE COMPLETE!";
+                    setTimeout(endGame, 1500); // 1.5s delay as requested
+                }
+            } else {
+                playRetroSound('wrong');
+                factDisplay.innerText = "INCORRECT SEQUENCE! REFER TO THE LUNAR DATE.";
+            }
+        }
+
+        let isDragging = false, startX, startY, skyX, skyY;
+        document.getElementById('viewport').addEventListener('mousedown', (e) => {
+            if(currentRound !== 1) return;
+            isDragging = true; startX = e.clientX; startY = e.clientY;
+            skyX = skyCanvas.offsetLeft; skyY = skyCanvas.offsetTop;
+        });
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        window.addEventListener('mousemove', (e) => {
+            gsap.set("#retro-cursor", { x: e.clientX, y: e.clientY });
+            if(isDragging && currentRound === 1) {
+                let newX = Math.min(0, Math.max(skyX + (e.clientX - startX), -(3000 - window.innerWidth)));
+                let newY = Math.min(0, Math.max(skyY + (e.clientY - startY), -(3000 - (window.innerHeight - 90))));
+                gsap.set(skyCanvas, {left: newX, top: newY});
+                updateRadarViewport();
+            }
+            if(currentRound === 1) checkCollision(e.clientX, e.clientY);
+        });
+
+        function updateRadarViewport() {
+            const ratio = 150 / 3000;
+            gsap.set(radarBox, { width: window.innerWidth * ratio, height: (window.innerHeight - 90) * ratio, left: -skyCanvas.offsetLeft * ratio, top: -skyCanvas.offsetTop * ratio });
+        }
+
+        function checkCollision(mx, my) {
+            const cx = mx - skyCanvas.offsetLeft;
+            const cy = (my - 90) - skyCanvas.offsetTop;
+            constellationHitboxes.forEach(hb => {
+                if(!hb.found && cx > hb.bounds.x && cx < hb.bounds.x + hb.bounds.width && cy > hb.bounds.y && cy < hb.bounds.y + hb.bounds.height) {
+                    hb.found = true; foundCount++;
+                    scoreDisplay.innerText = `FOUND: ${foundCount}/4`;
+                    factDisplay.innerText = hb.data.fact;
+                    playRetroSound('found');
+                    gsap.to(`.line-group-${hb.id}`, { strokeDashoffset: 0, duration: 1, ease: "steps(12)" });
+                    gsap.set(`#blip-${hb.id}`, { background: 'var(--pixel-green)' });
+                    if(foundCount === 4) {
+                        setTimeout(() => {
+                            factDisplay.innerText = "ALL CONSTELLATIONS FOUND. PREPARING LUNAR SYNCHRONIZATION...";
+                            setTimeout(triggerLoading, 1500);
+                        }, 1500);
+                    }
+                }
+            });
+        }
+
+        function endGame() {
+            document.getElementById('end-screen').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>

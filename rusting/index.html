@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust Sort: Brick Lab Edition (Enhanced)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #222;
+            font-family: 'Press Start 2P', cursive;
+            image-rendering: pixelated;
+        }
+
+        #bgCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            image-rendering: pixelated;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.99; }
+            5% { opacity: 1; }
+            10% { opacity: 0.98; }
+            100% { opacity: 1; }
+        }
+
+        .terminal-frame {
+            border: 8px solid #5d6675;
+            background: #1a1c2c !important; 
+            box-shadow: 12px 12px 0px #000;
+            animation: flicker 0.1s infinite;
+            backdrop-filter: none !important;
+        }
+
+        @keyframes shake {
+            0% { transform: translate(2px, 2px); }
+            25% { transform: translate(-4px, -2px); }
+            50% { transform: translate(4px, 4px); }
+            75% { transform: translate(-4px, 2px); }
+            100% { transform: translate(0, 0); }
+        }
+        .shake-it { animation: shake 0.2s steps(4) !important; }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-80px); opacity: 0; }
+        }
+        .score-popup {
+            position: absolute;
+            color: #4ade80;
+            font-size: 16px;
+            pointer-events: none;
+            animation: floatUp 0.6s ease-out forwards;
+            z-index: 50;
+            text-shadow: 2px 2px #000;
+        }
+
+        .scanline-layer {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        .scanline-bar {
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(0deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
+            position: absolute;
+            animation: scanMove 10s linear infinite;
+            z-index: 101;
+            pointer-events: none;
+        }
+        @keyframes scanMove { from { top: -100px; } to { top: 100%; } }
+
+        @keyframes itemJump {
+            0%, 100% { transform: translateY(0); } 
+            50% { transform: translateY(-20px); }
+        }
+
+        .item-sprite svg { 
+            width: 192px; /* 16px * 12 scale */
+            height: 192px;
+            animation: itemJump 1.5s steps(4) infinite;
+            shape-rendering: crispEdges; /* Forces sharp vector corners */
+        }
+
+        @keyframes textJump {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        .basket-btn:hover .main-text { animation: textJump 1s steps(2) infinite; }
+
+        @keyframes jumpyFade {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+        .click-hint { animation: jumpyFade 0.8s steps(2) infinite; }
+
+        .basket-btn {
+            transition: all 0.05s;
+            border-top: 6px solid #5d6675;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .basket-btn:active {
+            border-top-width: 0;
+            border-bottom: 2px solid #000;
+            transform: translateY(6px);
+            filter: brightness(1.8);
+        }
+
+        .rust-zone { background: #73231a; border-bottom: 8px solid #3d2522; }
+        .safe-zone { background: #1e3a8a; border-bottom: 8px solid #172554; }
+
+        .item-view {
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            border: 4px solid #000;
+        }
+
+        #fact-box {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap; 
+            line-height: 2;
+            letter-spacing: 0.5px;
+        }
+
+        .pixel-heart { width: 32px; height: 32px; image-rendering: pixelated; }
+    </style>
+</head>
+<body class="flex flex-col h-screen items-center justify-center">
+
+    <canvas id="bgCanvas"></canvas>
+    <div class="scanline-layer"></div>
+    <div class="scanline-bar"></div>
+
+    <div class="w-full max-w-5xl mb-4 flex justify-between z-20 px-4 items-center">
+        <div class="bg-black border-4 border-white p-3 shadow-[4px_4px_0px_#000]">
+            <span class="text-[10px] text-gray-400 uppercase">Batch:</span>
+            <span id="progress" class="text-white ml-2">00/20</span>
+        </div>
+
+        <div id="hearts-container" class="flex gap-4 bg-black border-4 border-red-600 p-2 shadow-[4px_4px_0px_#000]">
+        </div>
+
+        <div class="bg-black border-4 border-yellow-500 p-3 shadow-[4px_4px_0px_#000]">
+            <span class="text-[10px] text-yellow-500 uppercase">Score:</span>
+            <span id="score" class="text-white ml-2">0000</span>
+        </div>
+    </div>
+
+    <div id="game-frame" class="terminal-frame w-full max-w-5xl h-[520px] flex flex-col z-20">
+        <div class="flex flex-grow overflow-hidden">
+            <div class="w-1/2 flex flex-col p-6 border-r-8 border-slate-700">
+                <div id="item-title" class="text-[9px] text-cyan-400 mb-4 animate-pulse uppercase">ANALYZING...</div>
+                <div id="display" class="item-view flex-grow flex items-center justify-center relative bg-slate-900 overflow-hidden"></div>
+            </div>
+            <div class="w-1/2 p-8 flex flex-col">
+                <div class="text-[8px] text-emerald-500 mb-6 flex items-center uppercase">
+                    <span class="w-2 h-2 bg-emerald-500 mr-2"></span>
+                    Composition Data
+                </div>
+                <div id="fact-box" class="text-[11px] text-slate-300">Initializing scanner...</div>
+                <div class="mt-auto pt-4 border-t-2 border-slate-800 text-[7px] text-slate-500 uppercase">Hardware: Pixel-Tech V.2</div>
+            </div>
+        </div>
+        <div class="h-28 flex">
+            <button onclick="handleSort(true)" class="basket-btn rust-zone w-1/2 flex flex-col items-center justify-center group">
+                <span class="main-text text-xs text-orange-100 mb-1">RUST-READY</span>
+                <span class="click-hint opacity-0 group-hover:opacity-100 text-[7px] text-orange-300">CLICK TO SORT</span>
+            </button>
+            <button onclick="handleSort(false)" class="basket-btn safe-zone w-1/2 flex flex-col items-center justify-center group">
+                <span class="main-text text-xs text-blue-100 mb-1">NON-RUSTING</span>
+                <span class="click-hint opacity-0 group-hover:opacity-100 text-[7px] text-blue-300">CLICK TO SORT</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="overlay" class="fixed inset-0 bg-black z-[200] flex items-center justify-center p-6">
+        <div class="border-8 border-white bg-zinc-900 p-12 max-w-2xl text-center shadow-[12px_12px_0px_#a63d2d]">
+            <h1 class="text-xl text-yellow-400 mb-8">BRICK LAB SORT</h1>
+            <p class="text-[9px] leading-loose text-white mb-10">
+                20 UNIQUE ITEMS DETECTED. <br>
+                ONLY IRON AND STEEL OBJECTS ARE PERMITTED IN THE RUST-READY BIN. <br><br>
+                CHECK THE DATA READOUT CAREFULLY.
+            </p>
+            <button onclick="initGame()" class="bg-emerald-600 hover:bg-emerald-500 text-white p-6 border-b-8 border-emerald-900 text-xs">START_SCAN</button>
+        </div>
+    </div>
+
+    <div id="end-screen" class="fixed inset-0 bg-black z-[300] hidden flex items-center justify-center p-6">
+        <div class="border-8 border-white bg-zinc-900 p-12 max-w-2xl text-center shadow-[12px_12px_0px_#000]">
+            <h2 id="end-title" class="text-xl text-red-500 mb-6 uppercase">Scan Halted</h2>
+            <div class="bg-black p-6 border-4 border-slate-700 mb-8">
+                <p class="text-[10px] text-white mb-4 uppercase">Final Batch: <span id="end-batch">0/20</span></p>
+                <p class="text-[10px] text-yellow-400 uppercase">Total Score: <span id="end-score">0000</span></p>
+            </div>
+            <button onclick="location.reload()" class="bg-blue-600 hover:bg-blue-500 text-white p-6 border-b-8 border-blue-900 text-xs uppercase">Reboot System</button>
+        </div>
+    </div>
+
+    <script>
+        const bgCanvas = document.getElementById('bgCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        const renderW = 467; const renderH = 280;
+        bgCanvas.width = renderW; bgCanvas.height = renderH;
+        const colors = { mortar: '#3d2522', brick: '#a63d2d', highlight: '#d9725f', shadow: '#73231a', altBrick: '#8c352a' };
+        const bgBuffer = document.createElement('canvas');
+        bgBuffer.width = renderW; bgBuffer.height = renderH;
+        const bCtx = bgBuffer.getContext('2d');
+
+        function drawWall(context) {
+            const bh = 16; const rows = renderH / bh;
+            for (let y = 0; y < rows; y++) {
+                let x = (y % 2 === 0) ? 0 : -10;
+                while (x < renderW + 40) {
+                    const bw = 24 + Math.floor(Math.random() * 20);
+                    context.fillStyle = (Math.random() > 0.8) ? colors.altBrick : colors.brick;
+                    context.fillRect(x, y * bh, bw - 2, bh - 2);
+                    context.fillStyle = colors.highlight;
+                    context.fillRect(x, y * bh, bw - 2, 2); context.fillRect(x, y * bh, 2, bh - 2);
+                    context.fillStyle = colors.shadow;
+                    context.fillRect(x, y * bh + (bh - 4), bw - 2, 2); context.fillRect(x + (bw - 4), y * bh + 2, 2, bh - 4);
+                    x += bw;
+                }
+            }
+        }
+        drawWall(bCtx);
+        let scrollPos = 0;
+        function animateBg() {
+            scrollPos -= 0.4; if (Math.abs(scrollPos) >= renderW) scrollPos = 0;
+            bgCtx.fillStyle = colors.mortar; bgCtx.fillRect(0, 0, renderW, renderH);
+            bgCtx.drawImage(bgBuffer, scrollPos, 0); bgCtx.drawImage(bgBuffer, scrollPos + renderW, 0);
+            requestAnimationFrame(animateBg);
+        }
+        animateBg();
+
+        // --- 20 UNIQUE DETAILED PIXEL ITEMS ---
+        const ITEMS = [
+            { n: "IRON NAIL", r: true, f: "Hard grey metal. Highly magnetic. Used in timber construction.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="7" y="2" width="2" height="11" fill="#475569"/><rect x="8" y="2" width="1" height="11" fill="#64748b"/><rect x="5" y="2" width="6" height="2" fill="#94a3b8"/><rect x="5" y="2" width="6" height="1" fill="#cbd5e1"/><rect x="7" y="13" width="2" height="1" fill="#334155"/></svg></div>` },
+            { n: "PLASTIC RULER", r: false, f: "Flexible polymer. Lightweight and does not react with moisture.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="6" width="12" height="4" fill="#fb7185"/><rect x="2" y="6" width="12" height="1" fill="#fda4af"/><rect x="4" y="7" width="1" height="2" fill="#000"/><rect x="6" y="7" width="1" height="2" fill="#000"/><rect x="8" y="7" width="1" height="2" fill="#000"/><rect x="10" y="7" width="1" height="2" fill="#000"/><rect x="12" y="7" width="1" height="2" fill="#000"/></svg></div>` },
+            { n: "STEEL BOLT", r: true, f: "Industrial fastener. Made of iron alloyed with carbon. Very strong.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="6" y="4" width="4" height="9" fill="#475569"/><rect x="6" y="5" width="4" height="1" fill="#334155"/><rect x="6" y="7" width="4" height="1" fill="#334155"/><rect x="6" y="9" width="4" height="1" fill="#334155"/><rect x="5" y="2" width="6" height="3" fill="#94a3b8"/><rect x="5" y="2" width="6" height="1" fill="#cbd5e1"/></svg></div>` },
+            { n: "ALUMINUM CAN", r: false, f: "Light metal used for soda. Non-magnetic and does not rust.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="5" y="3" width="6" height="10" fill="#cbd5e1"/><rect x="10" y="3" width="1" height="10" fill="#94a3b8"/><rect x="5" y="3" width="6" height="1" fill="#f8fafc"/><rect x="7" y="2" width="2" height="1" fill="#64748b"/><rect x="6" y="5" width="4" height="4" fill="#94a3b8" opacity="0.3"/></svg></div>` },
+            { n: "GOLD RING", r: false, f: "Precious yellow metal. Extremely stable. No oxidation occurs.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="6" y="4" width="4" height="1" fill="#fbbf24"/><rect x="10" y="5" width="1" height="4" fill="#fbbf24"/><rect x="6" y="9" width="4" height="1" fill="#fbbf24"/><rect x="5" y="5" width="1" height="4" fill="#fbbf24"/><rect x="6" y="4" width="2" height="1" fill="#fef3c7"/><rect x="5" y="5" width="1" height="2" fill="#fef3c7"/></svg></div>` },
+            { n: "GLASS BOTTLE", r: false, f: "Non-metallic material. Brittle and transparent. Inert to air.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="7" y="2" width="2" height="2" fill="#99f6e4"/><rect x="5" y="4" width="6" height="9" fill="#99f6e4" fill-opacity="0.4"/><rect x="5" y="4" width="1" height="9" fill="#ccfbf1" opacity="0.5"/><rect x="7" y="5" width="1" height="6" fill="#fff" opacity="0.4"/></svg></div>` },
+            { n: "STEEL KEY", r: true, f: "Precision cut metal. Will corrode if left in humid conditions.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="7" width="4" height="4" fill="#94a3b8"/><rect x="4" y="8" width="2" height="2" fill="#1a1c2c"/><rect x="7" y="8" width="6" height="2" fill="#94a3b8"/><rect x="11" y="10" width="1" height="1" fill="#94a3b8"/><rect x="13" y="10" width="1" height="1" fill="#94a3b8"/></svg></div>` },
+            { n: "RUBBER BALL", r: false, f: "Elastic material. Made from latex. No metal properties.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="6" y="4" width="4" height="1" fill="#facc15"/><rect x="10" y="5" width="1" height="4" fill="#facc15"/><rect x="6" y="9" width="4" height="1" fill="#facc15"/><rect x="5" y="5" width="1" height="4" fill="#facc15"/><rect x="6" y="5" width="2" height="2" fill="#fde68a"/><rect x="8" y="7" width="2" height="2" fill="#eab308"/></svg></div>` },
+            { n: "STEEL WRENCH", r: true, f: "Handheld tool. Made of ferrous material. Magnetic.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="3" width="3" height="3" fill="#64748b"/><rect x="4" y="4" width="1" height="1" fill="#1a1c2c"/><rect x="5" y="6" width="1" height="6" fill="#64748b"/><rect x="3" y="11" width="3" height="3" fill="#64748b"/><rect x="4" y="12" width="1" height="1" fill="#1a1c2c"/><rect x="6" y="8" width="6" height="2" fill="#94a3b8"/></svg></div>` },
+            { n: "COTTON BAG", r: false, f: "Soft woven fabric. Does not contain any metal elements.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="5" y="6" width="6" height="7" fill="#fef3c7"/><rect x="6" y="5" width="4" height="1" fill="#fde68a"/><rect x="5" y="8" width="6" height="1" fill="#fde68a" opacity="0.4"/><rect x="7" y="6" width="2" height="1" fill="#fde68a"/></svg></div>` },
+            { n: "IRON HORSE-SHOE", r: true, f: "Forged iron gear for horses. Heavy and magnetic.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="4" y="4" width="2" height="8" fill="#475569"/><rect x="10" y="4" width="2" height="8" fill="#475569"/><rect x="6" y="10" width="4" height="2" fill="#475569"/><rect x="4" y="4" width="2" height="1" fill="#64748b"/><rect x="10" y="4" width="2" height="1" fill="#64748b"/></svg></div>` },
+            { n: "CERAMIC TILE", r: false, f: "Baked clay surface. Waterproof and non-metallic.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" fill="#e2e8f0"/><rect x="4" y="4" width="8" height="8" fill="#cbd5e1"/><rect x="3" y="3" width="10" height="1" fill="#f8fafc"/><rect x="3" y="3" width="1" height="10" fill="#f8fafc"/></svg></div>` },
+            { n: "COPPER WIRE", r: false, f: "Conductive orange metal. It oxidizes to green, but never rusts.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="7" width="12" height="2" fill="#b45309"/><rect x="2" y="7" width="12" height="1" fill="#d97706"/><rect x="3" y="9" width="3" height="1" fill="#b45309" opacity="0.5"/></svg></div>` },
+            { n: "SILVER COIN", r: false, f: "Precious lustrous metal. Very stable against oxidation.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="6" y="4" width="4" height="1" fill="#cbd5e1"/><rect x="10" y="5" width="1" height="4" fill="#cbd5e1"/><rect x="6" y="9" width="4" height="1" fill="#cbd5e1"/><rect x="5" y="5" width="1" height="4" fill="#cbd5e1"/><rect x="7" y="6" width="2" height="2" fill="#94a3b8"/></svg></div>` },
+            { n: "IRON HAMMER", r: true, f: "Heavy forged head. Prone to surface oxidation if kept damp.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="4" fill="#475569"/><rect x="4" y="4" width="8" height="1" fill="#64748b"/><rect x="10" y="5" width="2" height="2" fill="#334155"/><rect x="7" y="8" width="2" height="6" fill="#78350f"/><rect x="8" y="8" width="1" height="6" fill="#451a03"/></svg></div>` },
+            { n: "WOOD STICK", r: false, f: "Organic fibrous material. Decays but never rusts.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="2" fill="#92400e"/><rect x="4" y="7" width="2" height="1" fill="#78350f"/><rect x="8" y="8" width="3" height="1" fill="#451a03"/></svg></div>` },
+            { n: "STEEL FORK", r: true, f: "Iron-based alloy utensil. Magnetic and high strength.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="5" y="3" width="1" height="5" fill="#94a3b8"/><rect x="7" y="3" width="1" height="5" fill="#94a3b8"/><rect x="9" y="3" width="1" height="5" fill="#94a3b8"/><rect x="5" y="7" width="5" height="1" fill="#64748b"/><rect x="7" y="8" width="1" height="6" fill="#94a3b8"/></svg></div>` },
+            { n: "IRON PIPE", r: true, f: "Heavy plumbing component. Requires zinc coating to stop rust.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="5" width="10" height="6" fill="#334155"/><rect x="3" y="5" width="10" height="1" fill="#475569"/><rect x="3" y="10" width="10" height="1" fill="#1e293b"/></svg></div>` },
+            { n: "STEEL CLIP", r: true, f: "Small iron alloy wire. Will corrode if exposed to air.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="5" y="4" width="6" height="8" fill="none" stroke="#94a3b8" stroke-width="1"/><rect x="5" y="4" width="1" height="1" fill="#cbd5e1"/><rect x="10" y="11" width="1" height="1" fill="#475569"/></svg></div>` },
+            { n: "PLASTIC COMB", r: false, f: "Polymer grooming tool. Non-conductive and rust-proof.", s: `<div class="item-sprite"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="5" width="10" height="2" fill="#4f46e5"/><rect x="3" y="7" width="1" height="4" fill="#4f46e5"/><rect x="5" y="7" width="1" height="4" fill="#4f46e5"/><rect x="7" y="7" width="1" height="4" fill="#4f46e5"/><rect x="9" y="7" width="1" height="4" fill="#4f46e5"/><rect x="11" y="7" width="1" height="4" fill="#4f46e5"/><rect x="13" y="7" width="1" height="4" fill="#4f46e5"/></svg></div>` }
+        ];
+
+        let gameState = { items: [], index: 0, score: 0, hearts: 3, hasFailedThisItem: false };
+        const audio = new (window.AudioContext || window.webkitAudioContext)();
+        let typewriterInterval;
+
+        // FIXED PIXEL HEART SVG PATH
+        const pixelHeartSVG = (color) => `
+            <svg viewBox="0 0 8 8" class="pixel-heart">
+                <path d="M1,2 h2 v1 h1 v-1 h2 v1 h1 v2 h-1 v1 h-1 v1 h-1 v1 h-1 v-1 h-1 v-1 h-1 v-2 h1 z" fill="${color}"/>
+            </svg>`;
+
+        function playSound(type) {
+            if (audio.state === 'suspended') audio.resume();
+            const o = audio.createOscillator(); const g = audio.createGain();
+            o.connect(g); g.connect(audio.destination);
+            if (type === 'success') {
+                o.type = 'square'; o.frequency.setValueAtTime(600, audio.currentTime);
+                o.frequency.exponentialRampToValueAtTime(1200, audio.currentTime + 0.1);
+                g.gain.setValueAtTime(0.05, audio.currentTime); o.start(); o.stop(audio.currentTime + 0.2);
+            } else if (type === 'type') {
+                o.type = 'square'; o.frequency.setValueAtTime(400 + Math.random() * 100, audio.currentTime);
+                g.gain.setValueAtTime(0.01, audio.currentTime); o.start(); o.stop(audio.currentTime + 0.02);
+            } else {
+                o.type = 'sawtooth'; o.frequency.setValueAtTime(120, audio.currentTime);
+                o.frequency.exponentialRampToValueAtTime(30, audio.currentTime + 0.4);
+                g.gain.setValueAtTime(0.08, audio.currentTime); o.start(); o.stop(audio.currentTime + 0.4);
+            }
+        }
+
+        function typeText(text, targetId) {
+            const target = document.getElementById(targetId);
+            target.textContent = ""; let i = 0; clearInterval(typewriterInterval);
+            typewriterInterval = setInterval(() => {
+                if (i < text.length) {
+                    target.textContent += text[i];
+                    if (text[i] !== " ") playSound('type');
+                    i++;
+                } else { clearInterval(typewriterInterval); }
+            }, 35);
+        }
+
+        function updateHeartsUI() {
+            const container = document.getElementById('hearts-container');
+            container.innerHTML = "";
+            for (let i = 0; i < 3; i++) {
+                container.innerHTML += pixelHeartSVG(i < gameState.hearts ? "#ff0000" : "#333333");
+            }
+        }
+
+        function initGame() {
+            if (audio.state === 'suspended') audio.resume();
+            document.getElementById('overlay').style.display = 'none';
+            gameState.items = [...ITEMS].sort(() => Math.random() - 0.5);
+            gameState.score = 0; gameState.index = 0; gameState.hearts = 3; gameState.hasFailedThisItem = false;
+            document.getElementById('score').innerText = "0000";
+            updateHeartsUI(); update();
+        }
+
+        function update() {
+            if (gameState.index >= 20) { showEndScreen(true); return; }
+            const item = gameState.items[gameState.index];
+            document.getElementById('item-title').innerText = `IDENTIFIED: ${item.n}`;
+            document.getElementById('display').innerHTML = item.s;
+            typeText(item.f, 'fact-box');
+            document.getElementById('progress').innerText = `${String(gameState.index + 1).padStart(2, '0')}/20`;
+        }
+
+        function handleSort(userSaysRust) {
+            const item = gameState.items[gameState.index];
+            const frame = document.getElementById('game-frame');
+            const display = document.getElementById('display');
+
+            if (item.r === userSaysRust) {
+                const points = gameState.hasFailedThisItem ? 50 : 100;
+                gameState.score += points;
+                gameState.index++;
+                gameState.hasFailedThisItem = false;
+                document.getElementById('score').innerText = String(gameState.score).padStart(4, '0');
+                playSound('success');
+
+                const popup = document.createElement('div');
+                popup.className = 'score-popup';
+                popup.innerText = `+${points}`;
+                popup.style.left = '40%'; popup.style.top = '40%';
+                display.appendChild(popup);
+                setTimeout(() => popup.remove(), 600);
+                setTimeout(update, 200);
+            } else {
+                playSound('error');
+                gameState.hearts--;
+                gameState.hasFailedThisItem = true;
+                updateHeartsUI();
+                frame.classList.add('shake-it');
+                const originalBg = frame.style.background;
+                frame.style.background = '#450a0a';
+                setTimeout(() => {
+                    frame.classList.remove('shake-it');
+                    frame.style.background = originalBg;
+                    if (gameState.hearts <= 0) showEndScreen(false);
+                }, 300);
+            }
+        }
+
+        function showEndScreen(win) {
+            const screen = document.getElementById('end-screen');
+            const title = document.getElementById('end-title');
+            screen.classList.remove('hidden');
+            title.textContent = win ? "BATCH COMPLETE" : "SCAN HALTED";
+            title.style.color = win ? "#4ade80" : "#ff4d4d";
+            document.getElementById('end-batch').textContent = `${gameState.index}/20`;
+            document.getElementById('end-score').textContent = String(gameState.score).padStart(4, '0');
+        }
+    </script>
+</body>
+</html>

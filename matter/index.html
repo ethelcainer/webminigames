@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matter Morph 3D | Unit 8 Science</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; overflow: hidden; background: #0f172a; font-family: 'Fredoka', sans-serif; }
+        canvas { display: block; }
+        .ui-layer { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+        .interactive { pointer-events: auto; }
+        .state-btn { background: rgba(15, 23, 42, 0.9); padding: 12px 24px; border-radius: 16px; border: 2px solid #38bdf8; color: #38bdf8; font-weight: bold; transition: all 0.3s; }
+        .state-active { background: #38bdf8; color: white; transform: scale(1.1); box-shadow: 0 0 20px rgba(56, 189, 248, 0.5); }
+        #screen-start, #screen-end { background: rgba(10, 15, 30, 0.95); backdrop-filter: blur(10px); z-index: 100; }
+        .hud-card { background: rgba(30, 41, 59, 0.7); border-left: 4px solid #38bdf8; backdrop-filter: blur(5px); }
+    </style>
+</head>
+<body>
+
+    <div id="screen-start" class="ui-layer flex-col justify-center gap-6 text-center p-10">
+        <h1 class="text-7xl text-white font-bold tracking-tight">MATTER <span class="text-sky-400">MORPH</span></h1>
+        <p class="text-sky-200 text-xl max-w-lg leading-relaxed">Escape the lab by mastering state changes. <br> <b>A & D</b> to Move • <b>1, 2, 3</b> to Morph</p>
+        <button onclick="startGame()" class="interactive bg-sky-500 hover:bg-sky-400 text-white px-12 py-5 rounded-full text-2xl font-bold transition-all shadow-[0_0_30px_rgba(56,189,248,0.4)]">INITIALIZE TEST</button>
+    </div>
+
+    <div id="screen-end" class="ui-layer flex-col justify-center gap-6 text-center hidden">
+        <h1 class="text-6xl text-green-400 font-bold">RESEARCH COMPLETE</h1>
+        <p class="text-white text-xl">You've successfully demonstrated the properties of Matter.</p>
+        <button onclick="location.reload()" class="interactive bg-green-500 text-white px-10 py-4 rounded-full text-2xl font-bold">RESTART SIMULATION</button>
+    </div>
+
+    <div id="game-ui" class="ui-layer justify-start p-10 flex-col gap-6 opacity-0 transition-opacity duration-1000">
+        <div class="flex gap-4">
+            <div id="btn-1" class="state-btn">1: SOLID</div>
+            <div id="btn-2" class="state-btn state-active">2: LIQUID</div>
+            <div id="btn-3" class="state-btn">3: GAS</div>
+        </div>
+        <div class="hud-card text-white/90 p-5 rounded-xl w-80 shadow-2xl">
+            <h3 class="text-sky-400 font-bold uppercase text-xs mb-1 tracking-widest">Current Property</h3>
+            <p id="hint-text" class="text-sm font-medium">Liquid: Fixed volume but flows. Sinks in gravity.</p>
+        </div>
+    </div>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+        uniform float time;
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            float PI = 3.14159;
+            vec2 p = uv * vec2(PI * 2.0);
+            vec3 offset = normalize(normal) * (sin(time * 3.0 + p.y) * 0.3);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position + offset, 1.0);
+        }
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform float time;
+        uniform vec3 color;
+        varying vec2 vUv;
+        void main() {
+            float pulse = abs(sin(time + vUv.x * 3.0)) * 0.2 + 0.8;
+            gl_FragColor = vec4(color * pulse, 1.0);
+        }
+    </script>
+
+    <script>
+        // --- AUDIO ENGINE ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSfx(freq, type, dur) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        }
+
+        // --- LEVEL DESIGN ---
+        // Property Logic:
+        // - Solid: Box (1.2m). Sinks. Slides.
+        // - Liquid: Sphere (0.8m). Sinks. Can fit through gaps < 1.2m.
+        // - Gas: Cloud. Floats up automatically.
+        const levels = [
+            { // L1: Intro - The Walk
+                plats: [{x:-5, y:-4, w:40, h:1}], 
+                goal: {x:15, y:-2.5} 
+            },
+            { // L2: The Evaporation Pipe - Must turn to Gas to rise
+                plats: [{x:-2, y:-4, w:10, h:1}, {x:8, y:-4, w:2, h:12}, {x:12, y:6, w:10, h:1}], 
+                goal: {x:18, y:7.5} 
+            },
+            { // L3: The Narrow Drain - Only Liquid fits through the gap
+                plats: [
+                    {x:0, y:-4, w:10, h:1}, 
+                    {x:10, y:-4, w:1, h:1}, // Small gap here
+                    {x:11, y:-4, w:10, h:1},
+                    {x:0, y:-10, w:30, h:1}
+                ], 
+                goal: {x:15, y:-8.5} 
+            },
+            { // L4: The Sinking Trap - Goal is at the bottom, gas is blocked
+                plats: [
+                    {x:0, y:5, w:20, h:1}, // Start high
+                    {x:0, y:8, w:20, h:1}, // Ceiling
+                    {x:18, y:-5, w:5, h:10}, // Wall
+                    {x:0, y:-5, w:20, h:1} // Floor
+                ], 
+                goal: {x:10, y:-3.5} 
+            },
+            { // L5: Master Zig-Zag
+                plats: [
+                    {x:0, y:-4, w:8, h:1}, // Start
+                    {x:8, y:0, w:1, h:10}, // Wall 1
+                    {x:15, y:-8, w:1, h:12}, // Wall 2
+                    {x:16, y:-8, w:10, h:1}, // Bottom path
+                    {x:25, y:-8, w:1, h:15} // End wall
+                ], 
+                goal: {x:22, y:10} 
+            }
+        ];
+
+        let currentLvl = 0;
+        let gameState = 'liquid';
+        let isStarted = false;
+
+        // --- THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x0f172a);
+        document.body.appendChild(renderer.domElement);
+
+        const group = new THREE.Group();
+        scene.add(group);
+
+        // State Geometries & Materials
+        const geoSolid = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+        const geoLiquid = new THREE.SphereGeometry(0.8, 32, 32);
+        const liquidMat = new THREE.ShaderMaterial({
+            uniforms: { time: { value: 0 }, color: { value: new THREE.Color(0x38bdf8) } },
+            vertexShader: document.getElementById('vertexShader').textContent,
+            fragmentShader: document.getElementById('fragmentShader').textContent
+        });
+
+        const gasGroup = new THREE.Group();
+        for(let i=0; i<6; i++) {
+            const m = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 12), new THREE.MeshPhongMaterial({color: 0xffffff, transparent: true, opacity: 0.5}));
+            m.position.set(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5);
+            gasGroup.add(m);
+        }
+
+        let heroMesh = new THREE.Mesh(geoLiquid, liquidMat);
+        group.add(heroMesh);
+
+        // Portal Visual
+        // Portal Visual - Upgraded to Shiny Metallic Texture
+        const portalGeo = new THREE.TorusGeometry(0.8, 0.2, 16, 100);
+        const portalMat = new THREE.MeshStandardMaterial({
+            color: 0xff00ff,       // Neon Green base
+            metalness: 0.9,        // High metalness for reflections
+            roughness: 0.1,        // Low roughness for a "shiny" finish
+            emissive: 0x14532d,    // Deep green glow from within
+            emissiveIntensity: 2.0
+        });
+        const portal = new THREE.Mesh(portalGeo, portalMat);
+        scene.add(portal);
+
+        // Environment Lights
+        scene.add(new THREE.AmbientLight(0x404040, 1));
+        const pLight = new THREE.PointLight(0x38bdf8, 1.5, 60);
+        pLight.position.set(5, 5, 5);
+        scene.add(pLight);
+        // Extra light to create shiny highlights on the ring
+        const topLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        topLight.position.set(0, 10, 5);
+        scene.add(topLight);
+
+        // --- CORE FUNCTIONS ---
+        function startGame() {
+            isStarted = true;
+            document.getElementById('screen-start').classList.add('hidden');
+            document.getElementById('game-ui').style.opacity = '1';
+            audioCtx.resume();
+            loadLevel(0);
+        }
+
+        let platforms = [];
+        function loadLevel(idx) {
+            platforms.forEach(p => scene.remove(p));
+            platforms = [];
+            const lvl = levels[idx];
+            
+            lvl.plats.forEach(d => {
+                const p = new THREE.Mesh(
+                    new THREE.BoxGeometry(d.w, d.h, 2.5), 
+                    new THREE.MeshPhongMaterial({color: 0x6366f1, shininess: 100, emissive: 0x1e1b4b})
+                );
+                p.position.set(d.x + d.w/2, d.y, 0);
+                p.userData = d;
+                scene.add(p);
+                platforms.push(p);
+            });
+            
+            portal.position.set(lvl.goal.x, lvl.goal.y, 0);
+            group.position.set(lvl.plats[0].x + 2, lvl.plats[0].y + 2, 0);
+            velocity.set(0,0,0);
+        }
+
+        function switchState(s) {
+            if(s === gameState) return;
+            gameState = s;
+            playSfx(s === 'solid' ? 150 : s === 'liquid' ? 350 : 700, 'sine', 0.2);
+            
+            group.remove(heroMesh);
+            document.querySelectorAll('.state-btn').forEach(b => b.classList.remove('state-active'));
+            
+            if(s === 'solid') {
+                heroMesh = new THREE.Mesh(geoSolid, new THREE.MeshPhongMaterial({color: 0x93c5fd, shininess: 200}));
+                document.getElementById('btn-1').classList.add('state-active');
+                document.getElementById('hint-text').innerText = "Solid: Fixed shape & volume. High density, sinks fast.";
+            } else if(s === 'liquid') {
+                heroMesh = new THREE.Mesh(geoLiquid, liquidMat);
+                document.getElementById('btn-2').classList.add('state-active');
+                document.getElementById('hint-text').innerText = "Liquid: Fixed volume but flows. Can seep through narrow slots.";
+            } else {
+                heroMesh = gasGroup;
+                document.getElementById('btn-3').classList.add('state-active');
+                document.getElementById('hint-text').innerText = "Gas: No fixed shape or volume. Low density, floats upward.";
+            }
+            group.add(heroMesh);
+        }
+
+        // --- PHYSICS & INPUT ---
+        let velocity = new THREE.Vector3();
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if(e.key === '1') switchState('solid');
+            if(e.key === '2') switchState('liquid');
+            if(e.key === '3') switchState('gas');
+        });
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        function update(t) {
+            requestAnimationFrame(update);
+            if(!isStarted) return;
+
+            liquidMat.uniforms.time.value = t * 0.001;
+            
+            let accel = 0.015;
+            let gravity = -0.012;
+            
+            if(gameState === 'solid') gravity = -0.03; 
+            if(gameState === 'gas') {
+                gravity = 0.01; 
+                gasGroup.children.forEach((c, i) => {
+                    c.position.y += Math.sin(t*0.003 + i)*0.005;
+                    c.position.x += Math.cos(t*0.003 + i)*0.005;
+                });
+            }
+
+            if(keys['KeyD'] || keys['ArrowRight']) velocity.x += accel;
+            if(keys['KeyA'] || keys['ArrowLeft']) velocity.x -= accel;
+            
+            velocity.y += gravity;
+            velocity.x *= 0.92; 
+            velocity.y *= 0.96;
+
+            group.position.add(velocity);
+
+            // Boundaries
+            if(group.position.x < -10) group.position.x = -10;
+            if(group.position.x > 40) group.position.x = 40;
+            if(group.position.y < -15) group.position.set(2, 0, 0); // Fall reset
+
+            // Collision Detection
+            platforms.forEach(p => {
+                const d = p.userData;
+                const size = gameState === 'solid' ? 0.6 : 0.45; // Hitbox varies by state
+                const hb = { 
+                    l: group.position.x - size, r: group.position.x + size,
+                    t: group.position.y + size, b: group.position.y - size 
+                };
+                const pb = { l: d.x, r: d.x + d.w, t: d.y + d.h/2, b: d.y - d.h/2 };
+
+                if(hb.r > pb.l && hb.l < pb.r && hb.t > pb.b && hb.b < pb.t) {
+                    if(velocity.y < 0 && group.position.y > pb.t) {
+                        group.position.y = pb.t + size;
+                        velocity.y = 0;
+                    } else if(velocity.y > 0 && group.position.y < pb.b) {
+                        group.position.y = pb.b - size;
+                        velocity.y = 0;
+                    } else {
+                        group.position.x -= velocity.x;
+                        velocity.x = 0;
+                    }
+                }
+            });
+
+            // Goal Logic
+            if(group.position.distanceTo(portal.position) < 1.6) {
+                playSfx(800, 'square', 0.15);
+                currentLvl++;
+                if(currentLvl < levels.length) loadLevel(currentLvl);
+                else {
+                    isStarted = false;
+                    document.getElementById('screen-end').classList.remove('hidden');
+                }
+            }
+
+            camera.position.lerp(new THREE.Vector3(group.position.x, group.position.y + 1, 15), 0.08);
+            portal.rotation.z += 0.04;
+            portal.rotation.y += 0.02;
+            renderer.render(scene, camera);
+        }
+
+        update(0);
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

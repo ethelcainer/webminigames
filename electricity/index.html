@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volt's Circuit Runner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --blueprint-blue: #1e3a8a;
+            --tech-yellow: #facc15;
+            --caution-stripe: repeating-linear-gradient(45deg, #facc15, #facc15 10px, #ca8a04 10px, #ca8a04 20px);
+            /* Increased cell size for a bigger window */
+            --cell-size: 55px; 
+            --wall-color: #334155;
+            --wall-thickness: 2px;
+        }
+        
+        @keyframes gridMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 0; }
+        }
+
+        body { 
+            font-family: 'Fredoka', sans-serif; 
+            background-color: var(--blueprint-blue);
+            background-image: linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            /* Animated grid background */
+            animation: gridMove 2s linear infinite;
+            overflow: hidden; 
+            touch-action: none; 
+        }
+
+        .game-wrapper {
+            /* Dynamically match the maze width: 10 columns * 65px + border/padding adjustments */
+            width: calc(10 * var(--cell-size) + 12px);
+        }
+
+        .tech-panel { background: #f8fafc; border: 4px solid #0f172a; box-shadow: 8px 8px 0 #0f172a; border-radius: 12px; }
+        .tech-header-stripe { height: 24px; background: var(--caution-stripe); border-bottom: 4px solid #0f172a; border-radius: 8px 8px 0 0; }
+        .tech-btn { background: var(--tech-yellow); border: 4px solid #0f172a; font-weight: 700; text-transform: uppercase; box-shadow: 4px 4px 0 #0f172a; transition: all 0.1s; }
+        .tech-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 #0f172a; }
+
+        .maze-container { 
+            background: #0f172a; 
+            border: 6px solid #60a5fa; 
+            border-radius: 16px; 
+            position: relative; 
+            display: grid;
+            box-shadow: 8px 8px 0 #0f172a, inset 0 0 40px rgba(0,0,0,0.8);
+            margin: auto;
+        }
+
+        .cell { position: relative; width: var(--cell-size); height: var(--cell-size); }
+        .cell.w-top { border-top: var(--wall-thickness) solid var(--wall-color); }
+        .cell.w-bottom { border-bottom: var(--wall-thickness) solid var(--wall-color); }
+        .cell.w-left { border-left: var(--wall-thickness) solid var(--wall-color); }
+        .cell.w-right { border-right: var(--wall-thickness) solid var(--wall-color); }
+
+        #volt { 
+            z-index: 100; 
+            transition: all 0.15s ease-out; 
+            pointer-events: none;
+            filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.5));
+        }
+        
+        #trail-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 40; pointer-events: none; }
+        .trail-line { fill: none; stroke: #facc15; stroke-width: 3; stroke-dasharray: 6, 8; stroke-linecap: round; opacity: 0.8; }
+
+        /* Removed scaling, only lighting up */
+        .glow-finish { filter: drop-shadow(0 0 30px #facc15); transition: all 0.5s; }
+        .battery-cap { background: #94a3b8; border: 2px solid #0f172a; }
+        .asset-container { position: absolute; display: flex; align-items: center; justify-content: center; z-index: 50; pointer-events: none; }
+
+        /* .schematic-decor {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.15;
+            z-index: 0;
+            user-select: none;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        } */
+
+        /* .decor-item { position: absolute; } */
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- <div class="schematic-decor">
+        <div class="decor-item" style="top: 10%; left: 5%;">R1: 220&Omega;</div>
+        <div class="decor-item" style="bottom: 15%; right: 5%;">C3: 47&mu;F</div>
+        <div class="decor-item" style="top: 20%; right: 10%;">V_IN: +12V</div>
+        <div class="decor-item" style="bottom: 10%; left: 8%;">GND_REF</div>
+        
+        <svg class="decor-item" style="top: 50%; left: 2%; width: 40px;" viewBox="0 0 40 40">
+            <line x1="20" y1="5" x2="20" y2="25" stroke="white" stroke-width="2"/>
+            <line x1="10" y1="25" x2="30" y2="25" stroke="white" stroke-width="2"/>
+            <line x1="14" y1="30" x2="26" y2="30" stroke="white" stroke-width="2"/>
+            <line x1="18" y1="35" x2="22" y2="35" stroke="white" stroke-width="2"/>
+        </svg>
+
+        <svg class="decor-item" style="bottom: 30%; right: 3%; width: 60px;" viewBox="0 0 100 40">
+            <path d="M0 20 L20 20 L25 10 L35 30 L45 10 L55 30 L65 10 L75 30 L80 20 L100 20" fill="none" stroke="white" stroke-width="2"/>
+        </svg>
+    </div> -->
+
+    <div id="start-screen" class="fixed inset-0 z-[300] flex items-center justify-center bg-blueprint-blue/90 backdrop-blur-sm">
+        <div class="tech-panel w-full max-w-lg">
+            <div class="tech-header-stripe"></div>
+            <div class="p-8 text-center">
+                <h1 class="text-5xl font-bold text-slate-900 mb-4">VOLT RUNNER</h1>
+                <div class="flex justify-center mb-6">
+                    <svg viewBox="0 0 100 100" class="w-24 h-24 drop-shadow-xl">
+                        <path d="M50 5 L30 50 L50 50 L40 95 L80 40 L55 40 L70 5 Z" fill="#facc15" stroke="#0f172a" stroke-width="4" stroke-linejoin="round"/>
+                        <circle cx="42" cy="42" r="5" fill="#0f172a"/> 
+                        <circle cx="58" cy="42" r="5" fill="#0f172a"/>
+                        <!-- <path d="M50 55 Q 58 62 66 55" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/> -->
+                    </svg>
+                </div>
+                <p class="text-slate-600 mb-8 font-bold text-lg">Every level is a new random circuit! Can you close them all?</p>
+                <button onclick="startGameFlow()" class="tech-btn px-12 py-4 text-2xl rounded-xl w-full">START MISSION</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-wrapper flex flex-col">
+        <div class="w-full flex justify-between items-center mb-6 tech-panel p-4 rounded-xl z-20 relative">
+            <div class="flex flex-col">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Circuit Level</span>
+                <span id="level-display" class="text-2xl font-bold text-slate-800">1 / 3</span>
+            </div>
+            <div id="timer" class="text-3xl font-bold text-blue-600 bg-blue-100 px-4 py-1 rounded-lg border-2 border-blue-300">0.00s</div>
+            <div class="flex flex-col items-end">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Status</span>
+                <span id="status-msg" class="text-sm font-bold text-emerald-500">Path Clear</span>
+            </div>
+        </div>
+
+        <div id="maze-outer" class="relative">
+            <div id="stage" class="maze-container">
+                <svg id="trail-svg"><polyline id="trail-polyline" points="" class="trail-line"/></svg>
+                
+                <div id="volt" class="absolute flex items-center justify-center">
+                    <svg viewBox="0 0 100 100" class="w-full h-full">
+                        <defs>
+                            <linearGradient id="voltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#fef08a" />
+                                <stop offset="100%" style="stop-color:#facc15" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M50 5 L30 50 L50 50 L40 95 L80 40 L55 40 L70 5 Z" fill="url(#voltGrad)" stroke="#ca8a04" stroke-width="3" stroke-linejoin="round"/>
+                        <circle cx="44" cy="32" r="5" fill="#0f172a"/> 
+                        <circle cx="56" cy="32" r="5" fill="#0f172a"/>
+
+                        <circle cx="43" cy="30" r="1.5" fill="white"/>
+                        <circle cx="55" cy="30" r="1.5" fill="white"/>
+                        <!-- <path d="M56 38 Q 61 44 66 38" fill="none" stroke="#ca8a04" stroke-width="4" stroke-linecap="round"/> -->
+                    </svg>
+                </div>
+            </div>
+
+            <div id="battery" class="asset-container w-16 h-10">
+                <div class="w-full h-full bg-slate-200 border-4 border-slate-800 rounded-md flex items-center justify-center shadow-lg"><span class="text-slate-800 font-bold text-[10px]">12V</span></div>
+                <div class="w-2 h-5 battery-cap -ml-1 rounded-r-sm"></div>
+            </div>
+
+            <div id="bulb" class="asset-container w-16 h-16">
+                <svg viewBox="0 0 100 100" class="w-full h-full">
+                    <circle cx="50" cy="40" r="30" fill="#e2e8f0" stroke="#475569" stroke-width="4" id="bulb-glass"/>
+                    <rect x="35" y="70" width="30" height="15" fill="#475569" rx="2"/>
+                    <path d="M40 40 Q 50 30 60 40" fill="none" stroke="#94a3b8" stroke-width="3"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <div id="win-modal" class="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300">
+        <div class="tech-panel w-full max-w-md pointer-events-auto">
+            <div class="tech-header-stripe"></div>
+            <div class="p-8 text-center">
+                <h2 class="text-3xl font-bold text-slate-900 mb-2">CIRCUIT CLOSED!</h2>
+                <p class="text-slate-600 mb-6 font-bold">Time: <span id="final-time" class="text-blue-600">0s</span></p>
+                <button id="next-btn" onclick="nextLevel()" class="tech-btn px-8 py-3 text-xl rounded-xl w-full">NEXT LEVEL >></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const stage = document.getElementById('stage');
+        const volt = document.getElementById('volt');
+        const timerDisplay = document.getElementById('timer');
+        const levelDisplay = document.getElementById('level-display');
+        
+        let currentLevel = 1;
+        const gridSize = 10;
+        const cellSize = 55;
+        let maze = [];
+        let playerPos = { x: 0, y: 0 };
+        let trailPoints = [];
+        let startTime, timerInterval;
+        let isGameRunning = false;
+
+        // Sound Engine
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(freq, type, duration, vol = 0.1) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function startGameFlow() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            document.getElementById('start-screen').style.display = 'none';
+            initLevel(1);
+            isGameRunning = true;
+        }
+
+        function generateMaze(size) {
+            const maze = Array.from({ length: size }, () => Array(size).fill(15));
+            const visited = Array.from({ length: size }, () => Array(size).fill(false));
+            const walls = [];
+
+            function addWalls(x, y) {
+                if (x > 0 && !visited[y][x-1]) walls.push({ x, y, dir: 'L' });
+                if (x < size-1 && !visited[y][x+1]) walls.push({ x, y, dir: 'R' });
+                if (y > 0 && !visited[y-1][x]) walls.push({ x, y, dir: 'U' });
+                if (y < size-1 && !visited[y+1][x]) walls.push({ x, y, dir: 'D' });
+            }
+
+            let x = 0, y = 0;
+            visited[y][x] = true;
+            addWalls(x, y);
+
+            while (walls.length > 0) {
+                const { x, y, dir } = walls.splice(Math.floor(Math.random() * walls.length), 1)[0];
+                let nx = x, ny = y;
+                if (dir === 'L') nx--; else if (dir === 'R') nx++; else if (dir === 'U') ny--; else if (dir === 'D') ny++;
+
+                if (!visited[ny][nx]) {
+                    visited[ny][nx] = true;
+                    if (dir === 'L') { maze[y][x] &= ~1; maze[ny][nx] &= ~4; }
+                    else if (dir === 'R') { maze[y][x] &= ~4; maze[ny][nx] &= ~1; }
+                    else if (dir === 'U') { maze[y][x] &= ~2; maze[ny][nx] &= ~8; }
+                    else if (dir === 'D') { maze[y][x] &= ~8; maze[ny][nx] &= ~2; }
+                    addWalls(nx, ny);
+                }
+            }
+            return maze;
+        }
+
+        function initLevel(idx) {
+            currentLevel = idx;
+            levelDisplay.innerText = `${idx} / 3`;
+            maze = generateMaze(gridSize);
+            playerPos = { x: 0, y: 0 };
+            trailPoints = [];
+            
+            stage.innerHTML = `<svg id="trail-svg"><polyline id="trail-polyline" points="" class="trail-line"/></svg>`;
+            stage.style.gridTemplateColumns = `repeat(${gridSize}, ${cellSize}px)`;
+            
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    const val = maze[y][x];
+                    if (val & 1) cell.classList.add('w-left');
+                    if (val & 2) cell.classList.add('w-top');
+                    if (val & 4) cell.classList.add('w-right');
+                    if (val & 8) cell.classList.add('w-bottom');
+                    stage.appendChild(cell);
+                }
+            }
+
+            volt.style.width = (cellSize * 0.75) + 'px';
+            volt.style.height = (cellSize * 0.75) + 'px';
+            stage.appendChild(volt);
+            
+            updateVoltPosition(true);
+            positionAssets();
+            startTimer();
+            document.getElementById('bulb-glass').setAttribute('fill', '#e2e8f0');
+            document.getElementById('bulb-glass').classList.remove('glow-finish');
+        }
+
+        function positionAssets() {
+            const battery = document.getElementById('battery');
+            const bulb = document.getElementById('bulb');
+            battery.style.left = "-40px";
+            battery.style.top = (cellSize / 2 - 20) + "px";
+            bulb.style.right = "-45px";
+            bulb.style.bottom = (cellSize / 2 - 32) + "px";
+        }
+
+        function updateVoltPosition(isFirst = false) {
+            const tx = playerPos.x * cellSize + (cellSize * 0.125);
+            const ty = playerPos.y * cellSize + (cellSize * 0.125);
+            volt.style.transform = `translate(${tx}px, ${ty}px)`;
+            
+            const centerX = tx + (cellSize * 0.375);
+            const centerY = ty + (cellSize * 0.375);
+            const newPoint = `${centerX},${centerY}`;
+
+            // Backtracking logic: if moving back to previous point, erase the line
+            if (trailPoints.length > 1 && trailPoints[trailPoints.length - 2] === newPoint) {
+                trailPoints.pop();
+            } else {
+                if (trailPoints[trailPoints.length-1] !== newPoint) {
+                    trailPoints.push(newPoint);
+                }
+            }
+            
+            document.getElementById('trail-polyline').setAttribute('points', trailPoints.join(' '));
+            if (!isFirst) playSound(200 + (playerPos.x + playerPos.y) * 10, 'sine', 0.1, 0.05);
+        }
+
+        function canMove(x, y, dx, dy) {
+            const val = maze[y][x];
+            if (dx === 1 && !(val & 4)) return true;
+            if (dx === -1 && !(val & 1)) return true;
+            if (dy === 1 && !(val & 8)) return true;
+            if (dy === -1 && !(val & 2)) return true;
+            return false;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (!isGameRunning) return;
+            let dx = 0, dy = 0;
+            if (e.key === 'ArrowUp' || e.key === 'w') dy = -1;
+            else if (e.key === 'ArrowDown' || e.key === 's') dy = 1;
+            else if (e.key === 'ArrowLeft' || e.key === 'a') dx = -1;
+            else if (e.key === 'ArrowRight' || e.key === 'd') dx = 1;
+
+            if (dx !== 0 || dy !== 0) {
+                const nx = playerPos.x + dx;
+                const ny = playerPos.y + dy;
+                if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize && canMove(playerPos.x, playerPos.y, dx, dy)) {
+                    playerPos.x = nx;
+                    playerPos.y = ny;
+                    updateVoltPosition();
+                    checkWin();
+                }
+            }
+        });
+
+        function checkWin() {
+            if (playerPos.x === gridSize - 1 && playerPos.y === gridSize - 1) {
+                isGameRunning = false;
+                clearInterval(timerInterval);
+                playSound(500, 'triangle', 0.2);
+                setTimeout(() => playSound(800, 'triangle', 0.4), 150);
+                
+                document.getElementById('bulb-glass').setAttribute('fill', '#facc15');
+                document.getElementById('bulb-glass').classList.add('glow-finish');
+                document.getElementById('win-modal').style.opacity = '1';
+                document.getElementById('win-modal').style.pointerEvents = 'auto';
+                document.getElementById('final-time').innerText = timerDisplay.innerText;
+                if (currentLevel === 3) document.getElementById('next-btn').innerText = "FINISH MISSION";
+            }
+        }
+
+        function nextLevel() {
+            document.getElementById('win-modal').style.opacity = '0';
+            document.getElementById('win-modal').style.pointerEvents = 'none';
+            if (currentLevel < 3) {
+                initLevel(currentLevel + 1);
+                isGameRunning = true;
+            } else {
+                location.reload();
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                timerDisplay.innerText = ((Date.now() - startTime) / 1000).toFixed(2) + 's';
+            }, 50);
+        }
+    </script>
+</body>
+</html>

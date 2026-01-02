@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Guardian: Bio-Defender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        #game-canvas {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #87CEEB;
+            overflow: hidden;
+        }
+
+        /* Clouds */
+        .cloud {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.8;
+            animation: moveClouds 20s linear infinite;
+        }
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+        }
+        .cloud-1 { width: 100px; height: 40px; top: 10%; left: -100px; }
+        .cloud-1::before { width: 50px; height: 50px; top: -20px; left: 15px; }
+        .cloud-1::after { width: 40px; height: 40px; top: -15px; left: 50px; }
+        
+        .cloud-2 { width: 80px; height: 35px; top: 25%; left: -100px; animation-duration: 25s; animation-delay: -5s; }
+        .cloud-2::before { width: 40px; height: 40px; top: -15px; left: 10px; }
+        .cloud-2::after { width: 30px; height: 30px; top: -10px; left: 40px; }
+
+        .cloud-3 { width: 120px; height: 50px; top: 15%; left: -100px; animation-duration: 18s; animation-delay: -10s; }
+        .cloud-3::before { width: 60px; height: 60px; top: -25px; left: 20px; }
+        .cloud-3::after { width: 50px; height: 50px; top: -20px; left: 60px; }
+
+        @keyframes moveClouds {
+            from { left: -150px; }
+            to { left: 100vw; }
+        }
+
+        /* Green Field */
+        #ground-field {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 20vh;
+            background: linear-gradient(to bottom, #4ade80, #22c55e);
+            z-index: 5;
+        }
+
+        /* FIXED: Centered using 100% width flex container */
+        #plant-container {
+            position: absolute;
+            bottom: 0; 
+            left: 0;
+            width: 100%; 
+            height: 700px;
+            z-index: 20;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+        }
+
+        .plant-active {
+            pointer-events: auto !important;
+            cursor: pointer;
+        }
+
+        /* Bubbly Button Styles */
+        .btn-control {
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 0 0 rgba(0,0,0,0.1);
+        }
+        .btn-control:active {
+            transform: scale(0.9) translateY(4px);
+            box-shadow: 0 4px 0 0 rgba(0,0,0,0.1);
+        }
+        .active-state {
+            border: 6px solid white !important;
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255,255,255,0.5);
+        }
+
+        .enemy {
+            position: absolute;
+            transform-origin: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 25;
+        }
+        
+        /* @keyframes headSway {
+            0%, 50% { transform: rotate(-1deg); }
+            50% { transform: rotate(1deg); }
+        }
+        .head-swaying { 
+            animation: headSway 3s infinite ease-in-out; 
+            transform-origin: center; 
+        } */
+
+        .level-toast {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #facc15; /* Bright Amber */
+            color: #92400e;
+            padding: 1rem 2rem;
+            border-radius: 2rem;
+            font-size: 2rem;
+            font-weight: bold;
+            border: 6px solid white;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            z-index: 100;
+            pointer-events: none;
+            animation: popInAndOut 1.5s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popInAndOut {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -60%) scale(0.8); opacity: 0; }
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="game-canvas">
+        <div class="cloud cloud-1"></div>
+        <div class="cloud cloud-2"></div>
+        <div class="cloud cloud-3"></div>
+        <div id="ground-field"></div>
+
+        <div class="absolute top-0 w-full p-8 flex justify-between items-center z-50">
+            <div class="bg-white/90 backdrop-blur-md rounded-3xl p-5 shadow-xl border-4 border-sky-200">
+                <div class="w-40 h-6 bg-gray-100 rounded-full overflow-hidden">
+                    <div id="hp-bar" class="h-full bg-gradient-to-r from-rose-400 to-pink-500 w-full transition-all duration-300"></div>
+                </div>
+                <p id="mode-label" class="text-sky-600 font-bold text-xs mt-2 tracking-widest uppercase">Chaos Mode</p>
+            </div>
+            
+            <div class="bg-white/90 backdrop-blur-md rounded-3xl px-10 py-4 shadow-xl border-4 border-amber-200 text-center">
+                <p class="text-[10px] text-amber-500 font-bold uppercase tracking-widest">Species Saved</p>
+                <h2 id="score-val" class="text-4xl font-bold text-amber-600">0</h2>
+            </div>
+        </div>
+
+        <div id="plant-container">
+            <svg id="hero-svg" width="400" height="700" viewBox="0 0 400 700">
+                <path d="M200 700 Q 200 450 200 200" stroke="#22c55e" stroke-width="12" fill="none" />
+                
+                <path d="M200 500 Q 100 450 80 550 Q 120 620 200 580 Z" fill="#22c55e" />
+                <path d="M200 450 Q 300 400 320 500 Q 280 570 200 530 Z" fill="#22c55e" />
+
+                <g transform="translate(200, 200)" class="head-swaying">
+                    <g id="new-petals" fill="#fbbf24">
+                        <defs>
+                            <path id="petal-shape" d="M0 0 C 30 -40 30 -100 0 -130 C -30 -100 -30 -40 0 0" />
+                        </defs>
+                        <use href="#petal-shape" />
+                        <use href="#petal-shape" transform="rotate(22.5)" />
+                        <use href="#petal-shape" transform="rotate(45)" />
+                        <use href="#petal-shape" transform="rotate(67.5)" />
+                        <use href="#petal-shape" transform="rotate(90)" />
+                        <use href="#petal-shape" transform="rotate(112.5)" />
+                        <use href="#petal-shape" transform="rotate(135)" />
+                        <use href="#petal-shape" transform="rotate(157.5)" />
+                        <use href="#petal-shape" transform="rotate(180)" />
+                        <use href="#petal-shape" transform="rotate(202.5)" />
+                        <use href="#petal-shape" transform="rotate(225)" />
+                        <use href="#petal-shape" transform="rotate(247.5)" />
+                        <use href="#petal-shape" transform="rotate(270)" />
+                        <use href="#petal-shape" transform="rotate(292.5)" />
+                        <use href="#petal-shape" transform="rotate(315)" />
+                        <use href="#petal-shape" transform="rotate(337.5)" />
+                    </g>
+                    <circle cx="0" cy="0" r="65" fill="#92400e" />
+                    <circle cx="0" cy="0" r="50" fill="#78350f" />
+                </g>
+                
+                <g id="state-thorns" class="hidden">
+                    <path d="M190 600 L170 590 M210 550 L230 540 M190 450 L170 440 M210 350 L230 340" stroke="#450a0a" stroke-width="6" stroke-linecap="round"/>
+                    <g transform="translate(200, 200)" class="head-swaying">
+                         <path d="M0 -100 V-130 M70 -70 L90 -90 M100 0 H130 M70 70 L90 90 M0 100 V130 M-70 70 L-90 90 M-100 0 H-130 M-70 -70 L-90 -90" stroke="#450a0a" stroke-width="8" stroke-linecap="round"/>
+                    </g>
+                </g>
+
+                <g id="state-waxy" class="hidden">
+                    <g transform="translate(200, 200)" class="head-swaying">
+                        <circle cx="0" cy="0" r="135" fill="rgba(255,255,255,0.3)" stroke="white" stroke-width="5" stroke-dasharray="10 5" />
+                    </g>
+                    <path d="M200 500 Q 100 450 80 550 Q 120 620 200 580 Z" fill="rgba(255,255,255,0.2)" />
+                    <path d="M200 450 Q 300 400 320 500 Q 280 570 200 530 Z" fill="rgba(255,255,255,0.2)" />
+                </g>
+            </svg>
+        </div>
+
+        <div class="absolute bottom-12 w-full flex justify-center gap-10 z-50">
+            <div class="text-center">
+                <button id="btn-thorns" class="btn-control w-24 h-24 bg-rose-500 rounded-[2.5rem] flex items-center justify-center border-b-8 border-rose-700">
+                    <svg width="40" height="40" viewBox="0 0 100 100">
+                        <path d="M10 50 L40 40 L50 10 L60 40 L90 50 L60 60 L50 90 L40 60 Z" fill="white"/>
+                    </svg>
+                </button>
+                <p class="mt-3 text-xs font-bold text-rose-700 bg-white/80 px-4 py-1 rounded-full shadow-sm">THORNS [1]</p>
+            </div>
+
+            <div class="text-center">
+                <button id="btn-waxy" class="btn-control w-24 h-24 bg-sky-400 rounded-[2.5rem] flex items-center justify-center border-b-8 border-sky-600">
+                    <svg width="45" height="45" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="30" fill="none" stroke="white" stroke-width="8"/>
+                        <circle cx="40" cy="40" r="5" fill="white"/>
+                    </svg>
+                </button>
+                <p class="mt-3 text-xs font-bold text-sky-700 bg-white/80 px-4 py-1 rounded-full shadow-sm">WAXY [2]</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="start-modal" class="fixed inset-0 z-[100] flex items-center justify-center bg-sky-500/20 backdrop-blur-md">
+        <div class="bg-white p-12 rounded-[3.5rem] shadow-2xl border-b-[16px] border-sky-100 max-w-sm text-center">
+            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg width="40" height="40" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#4ade80"/></svg>
+            </div>
+            <h1 class="text-4xl font-bold text-sky-600 mb-4">Bio-Defender</h1>
+            <p class="text-gray-500 font-medium mb-8 leading-relaxed text-sm">
+                <b>Did you know?</b> Plants develop <b>thorns</b> or <b>rough textures</b> to stop animals from eating them. 
+                In <b>extreme heat</b>, they use a <b>waxy layer</b> to prevent water loss! 
+                Help your plant survive the waves!
+            </p>
+            <button onclick="initGame()" class="btn-control w-full bg-green-500 text-white py-5 rounded-3xl text-2xl font-bold border-b-8 border-green-700">LET'S PROTECT</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const hpBar = document.getElementById('hp-bar');
+        const scoreVal = document.getElementById('score-val');
+        const plant = document.getElementById('plant-container');
+        const modeLabel = document.getElementById('mode-label');
+        
+        let gameState = 'start';
+        let health = 100;
+        let score = 0;
+        let nextLevel = 400;
+        let activePower = null;
+        let currentMode = 'chaos';
+        let isSpawning = true; // NEW: Controls wave spawning
+        let enemies = [];
+        let frameCount = 0;
+
+        const beep = (freq, type="sine") => {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = type; o.frequency.setValueAtTime(freq, ctx.currentTime);
+            g.gain.setValueAtTime(0.1, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+            o.connect(g); g.connect(ctx.destination);
+            o.start(); o.stop(ctx.currentTime + 0.2);
+        };
+
+        function initGame() {
+            // 1. Reset Game Variables
+            health = 100;
+            score = 0;
+            nextLevel = 400;
+            currentMode = 'chaos';
+            isSpawning = true;
+            frameCount = 0;
+
+            // 2. Clear old enemies from the screen
+            enemies.forEach(e => e.el.remove());
+            enemies = [];
+
+            // 3. Reset the UI visuals
+            hpBar.style.width = '100%';
+            scoreVal.innerText = '0';
+            modeLabel.innerText = "Chaos Mode";
+            modeLabel.className = "text-sky-600 font-bold text-xs mt-2 tracking-widest uppercase";
+
+            document.getElementById('start-modal').classList.add('hidden');
+            gameState = 'playing';
+            gameLoop();
+            scheduleModeSwitch();
+        }
+
+        function setPower(p) {
+            if (activePower === p) {
+                activePower = null;
+                document.getElementById('state-thorns').classList.add('hidden');
+                document.getElementById('state-waxy').classList.add('hidden');
+                document.getElementById('btn-thorns').classList.remove('active-state');
+                document.getElementById('btn-waxy').classList.remove('active-state');
+            } else {
+                activePower = p;
+                document.getElementById('state-thorns').classList.toggle('hidden', p !== 'thorns');
+                document.getElementById('state-waxy').classList.toggle('hidden', p !== 'waxy');
+                document.getElementById('btn-thorns').classList.toggle('active-state', p === 'thorns');
+                document.getElementById('btn-waxy').classList.toggle('active-state', p === 'waxy');
+                beep(p === 'thorns' ? 300 : 500, 'triangle');
+            }
+        }
+
+        function showLevelUp() {
+            const toast = document.createElement('div');
+            toast.className = 'level-toast';
+            toast.innerText = 'LEVEL UP! 🚀';
+            canvas.appendChild(toast);
+            beep(600, 'square');
+            setTimeout(() => beep(900, 'square'), 100);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        document.getElementById('btn-thorns').addEventListener('click', () => setPower('thorns'));
+        document.getElementById('btn-waxy').addEventListener('click', () => setPower('waxy'));
+        window.addEventListener('keydown', (e) => {
+            if(e.key === '1') setPower('thorns');
+            if(e.key === '2') setPower('waxy');
+        });
+
+        // WAVE LOGIC: Replaces snap switch with smooth wave timers
+        function scheduleModeSwitch() {
+            if(gameState !== 'playing') return;
+
+            if (currentMode === 'chaos') {
+                // After 12 seconds of chaos, stop spawning
+                setTimeout(() => {
+                    isSpawning = false; 
+                    // Note: Bonus starts automatically in gameLoop once screen is clear!
+                }, 12000);
+            } else {
+                // After 6 seconds of Bonus, switch back to Chaos
+                setTimeout(() => {
+                    currentMode = 'chaos';
+                    isSpawning = true;
+                    modeLabel.innerText = "Chaos Mode";
+                    modeLabel.className = "text-sky-600 font-bold text-xs mt-2 tracking-widest uppercase";
+                    plant.classList.remove('plant-active');
+                    scheduleModeSwitch();
+                }, 6000);
+            }
+        }
+
+        plant.addEventListener('click', () => {
+            if(currentMode === 'bonus') {
+                score += 20;
+                scoreVal.innerText = score;
+                if (score >= nextLevel) { showLevelUp(); nextLevel += 400; }
+                spawnSeeds();
+                beep(800);
+            }
+        });
+
+        function spawnSeeds() {
+            const centerX = window.innerWidth / 2;
+            const targetY = window.innerHeight - 500; 
+
+            for(let i=0; i<12; i++) {
+                const s = document.createElement('div');
+                s.className = 'particle bg-white shadow-md';
+                s.style.width = '14px'; s.style.height = '14px';
+                s.style.left = centerX + 'px'; 
+                s.style.top = targetY + 'px'; 
+                canvas.appendChild(s);
+                const angle = (i / 12) * Math.PI * 2;
+                s.animate([
+                    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+                    { transform: `translate(${Math.cos(angle)*400}px, ${Math.sin(angle)*400}px) scale(0)`, opacity: 0 }
+                ], { duration: 1200 }).onfinish = () => s.remove();
+            }
+        }
+
+        function createEnemy() {
+            const type = Math.random() > 0.5 ? 'animal' : 'heat';
+            const el = document.createElement('div');
+            el.className = 'enemy';
+            
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.max(window.innerWidth, window.innerHeight) / 1.5;
+            const startX = window.innerWidth/2 + Math.cos(angle) * dist;
+            const startY = (window.innerHeight - 500) + Math.sin(angle) * dist;
+            
+            el.style.left = startX + 'px';
+            el.style.top = startY + 'px';
+            
+            if(type === 'animal') {
+                el.innerHTML = `
+                <svg width="70" height="70" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="#a16207" />
+                    <rect x="20" y="20" width="20" height="20" fill="#78350f" rx="5" />
+                    <rect x="60" y="20" width="20" height="20" fill="#78350f" rx="5" />
+                </svg>`;
+            } else {
+                el.innerHTML = `
+                <svg width="70" height="70" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="30" fill="#f97316" />
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#fdba74" stroke-width="4" stroke-dasharray="10 5" />
+                </svg>`;
+            }
+            
+            canvas.appendChild(el);
+            enemies.push({ el, type, x: startX, y: startY });
+        }
+
+        function gameLoop() {
+            if(gameState !== 'playing') return;
+            frameCount++;
+
+            // Only spawn if in Chaos mode and the Wave is active
+            if(currentMode === 'chaos' && isSpawning && frameCount % 70 === 0) {
+                createEnemy();
+            }
+
+            // WAVE DETECTION: Once spawning stops and enemies are clear, trigger Bonus
+            if(currentMode === 'chaos' && !isSpawning && enemies.length === 0) {
+                currentMode = 'bonus';
+                modeLabel.innerText = "Sowing Phase: Tap Plant!";
+                modeLabel.className = "text-amber-600 font-bold text-xs mt-2 tracking-widest uppercase";
+                plant.classList.add('plant-active');
+                scheduleModeSwitch(); // Start the bonus timer
+            }
+
+            const centerX = window.innerWidth/2;
+            const targetY = window.innerHeight - 500; 
+
+            for(let i=enemies.length-1; i>=0; i--) {
+                const e = enemies[i];
+                const dx = centerX - e.x;
+                const dy = targetY - e.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                const speed = 2.5 + (score / 400);
+                e.x += (dx/dist) * speed;
+                e.y += (dy/dist) * speed;
+                
+                e.el.style.left = e.x + 'px';
+                e.el.style.top = e.y + 'px';
+                
+                const rotation = Math.atan2(dy, dx);
+                e.el.style.transform = `translate(-50%, -50%) rotate(${rotation}rad)`;
+
+                if(dist < 130) {
+                    let success = false;
+                    if(e.type === 'animal' && activePower === 'thorns') success = true;
+                    if(e.type === 'heat' && activePower === 'waxy') success = true;
+
+                    if(success) {
+                        score += 10;
+                        scoreVal.innerText = score;
+                        beep(1000);
+                        spawnBlast(e.x, e.y, e.type === 'animal' ? '#fb7185' : '#7dd3fc');
+                    } else {
+                        health -= 15;
+                        hpBar.style.width = health + '%';
+                        canvas.style.filter = 'invert(0.1)';
+                        setTimeout(() => canvas.style.filter = '', 100);
+                        beep(150, 'sawtooth');
+                    }
+                    e.el.remove();
+                    enemies.splice(i, 1);
+                }
+            }
+
+            if(health <= 0) endGame();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnBlast(x, y, color) {
+            const b = document.createElement('div');
+            b.className = 'particle';
+            b.style.left = x + 'px'; b.style.top = y + 'px';
+            b.style.width = '70px'; b.style.height = '70px';
+            b.style.background = color;
+            b.style.zIndex = 30;
+            canvas.appendChild(b);
+            b.animate([
+                { transform: 'translate(-50%, -50%) scale(0)', opacity: 1 },
+                { transform: 'translate(-50%, -50%) scale(2)', opacity: 0 }
+            ], { duration: 400 }).onfinish = () => b.remove();
+        }
+
+        function endGame() {
+            gameState = 'over';
+
+            // Stop all active timers so they don't interfere with the next game
+            const highestId = window.setTimeout(() => {}, 0);
+            for (let i = 0; i < highestId; i++) window.clearTimeout(i);
+
+            document.getElementById('start-modal').classList.remove('hidden');
+            document.querySelector('#start-modal h1').innerText = "Mission Over";
+            document.querySelector('#start-modal h1').className = "text-4xl font-bold text-rose-500 mb-4";
+            document.querySelector('#start-modal p').innerText = `Your species survived with ${score} points! Can you do better?`;
+            document.querySelector('#start-modal button').innerText = "TRY AGAIN";
+        }
+    </script>
+</body>
+</html>
