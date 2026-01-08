@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoBalance: Ecosystem Master</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Quicksand', sans-serif; overflow: hidden; background: #1e293b; }
+        .bubble { border-radius: 50%; filter: blur(2px); pointer-events: none; position: absolute; z-index: 1; }
+        .game-card { background: #ffffff; border: 8px solid rgba(255,255,255,0.2); z-index: 20; }
+        .eco-entity { transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: grab; z-index: 30; }
+        
+        #game-canvas { background: transparent; position: relative; }
+        .status-pill { background: rgba(0, 0, 0, 0.05); border: 1px solid rgba(0,0,0,0.1); }
+        .screen-overlay { position: absolute; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.95); }
+        
+        .btn-glow { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4); }
+        .locked { filter: grayscale(1); opacity: 0.5; pointer-events: none; }
+        .bg-decoration { opacity: 0.3; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
+    </style>
+</head>
+<body class="h-screen w-screen flex items-center justify-center">
+
+    <div id="bubble-container" class="fixed inset-0 z-0"></div>
+
+    <div id="start-screen" class="screen-overlay">
+        <div class="bg-white p-10 rounded-[3rem] text-center max-w-lg shadow-2xl transform">
+            <h1 class="text-5xl font-black text-blue-600 mb-4">EcoBalance</h1>
+            <p class="text-gray-600 mb-8 text-lg">Master the nutrient cycle and biological balance across 3 unique ecosystems. Reach <b>100% Stability</b> to advance!</p>
+            <button onclick="startGame()" class="bg-green-500 hover:bg-green-600 text-white text-xl font-bold py-4 px-12 rounded-full transition-all hover:scale-105 active:scale-95 btn-glow">Start Journey</button>
+        </div>
+    </div>
+
+    <div id="note-screen" class="screen-overlay hidden opacity-0">
+        <div class="bg-white p-10 rounded-[3rem] text-center max-w-2xl shadow-2xl">
+            <div id="eco-icon-large" class="mb-4 flex justify-center scale-150"></div>
+            <h2 id="round-title" class="text-3xl font-bold text-blue-800 mb-2"></h2>
+            <p id="eco-notes" class="text-gray-600 mb-8 leading-relaxed"></p>
+            <button onclick="closeNotes()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-10 rounded-full">Enter Ecosystem</button>
+        </div>
+    </div>
+
+    <div id="end-screen" class="screen-overlay hidden opacity-0">
+        <div class="bg-white p-10 rounded-[3rem] text-center max-w-lg shadow-2xl">
+            <h2 class="text-4xl font-bold text-green-600 mb-4">Mission Accomplished!</h2>
+            <p class="text-gray-600 mb-8">You have successfully balanced all ecosystems and maintained the biodiversity of the planet.</p>
+            <button onclick="location.reload()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-12 rounded-full">Play Again</button>
+        </div>
+    </div>
+
+    <main class="relative z-10 w-[95vw] h-[90vh] max-w-5xl game-card rounded-[3rem] shadow-2xl overflow-hidden flex flex-col">
+        
+        <header class="p-6 flex justify-between items-center border-b-2 border-gray-100">
+            <div>
+                <h1 id="current-eco-name" class="text-3xl font-bold text-blue-900 tracking-tight">Rainforest</h1>
+                <p class="text-blue-800 font-medium opacity-60">Form 2 Chapter 2: Interaction among Living Organisms</p>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="resetRound()" class="bg-gray-100 hover:bg-gray-200 text-blue-900 px-4 py-2 rounded-2xl font-bold transition-all text-sm uppercase tracking-wider">Reset Round</button>
+                <div class="status-pill px-6 py-2 rounded-full flex flex-col items-center min-w-[100px]">
+                    <span class="text-xs uppercase font-bold text-blue-900">Stability</span>
+                    <div class="w-24 h-3 bg-gray-200 rounded-full mt-1 overflow-hidden">
+                        <div id="balance-bar" class="h-full bg-red-500 w-0 transition-all duration-700"></div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section id="game-canvas" class="flex-1 relative overflow-hidden">
+            <div id="bg-decoration-layer" class="absolute inset-0 pointer-events-none flex items-end justify-around pb-12"></div>
+            <div id="entities-layer" class="absolute inset-0"></div>
+        </section>
+
+        <footer class="p-6 bg-gray-50 flex items-center justify-between">
+            <div class="flex gap-4">
+                <div onclick="addEntity('producer')" class="cursor-pointer flex flex-col items-center p-3 bg-white rounded-2xl hover:shadow-md transition-all border-2 border-green-100 active:scale-95 w-24">
+                    <div id="svg-p-icon" class="w-10 h-10"></div>
+                    <span class="mt-1 text-[10px] font-bold text-green-700 uppercase">Producer</span>
+                </div>
+                <div onclick="addEntity('herbivore')" class="cursor-pointer flex flex-col items-center p-3 bg-white rounded-2xl hover:shadow-md transition-all border-2 border-orange-100 active:scale-95 w-24">
+                    <div id="svg-h-icon" class="w-10 h-10"></div>
+                    <span class="mt-1 text-[10px] font-bold text-orange-700 uppercase">Herbivore</span>
+                </div>
+                <div onclick="addEntity('carnivore')" class="cursor-pointer flex flex-col items-center p-3 bg-white rounded-2xl hover:shadow-md transition-all border-2 border-red-100 active:scale-95 w-24">
+                    <div id="svg-c-icon" class="w-10 h-10"></div>
+                    <span class="mt-1 text-[10px] font-bold text-red-700 uppercase">Carnivore</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <div class="text-right">
+                    <p class="text-xs font-bold text-blue-900 uppercase opacity-50">Progress</p>
+                    <p id="round-indicator" class="text-2xl font-black text-blue-600">1 / 3</p>
+                </div>
+                <button id="next-btn" onclick="nextRound()" class="locked bg-green-500 text-white font-bold py-4 px-8 rounded-2xl shadow-lg transition-all">Next Ecosystem →</button>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playPop(freq = 400, type = 'sine') {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        const ecosystemPool = [
+            {
+                name: "Tropical Rainforest",
+                notes: "Producers (Ferns) capture solar energy. Herbivores like the Malayan Tapir consume them, while the Malayan Tiger acts as the apex predator to keep populations healthy.",
+                colors: { sky: "#7dd3fc", ground: "#16a34a" },
+                tree: `<svg viewBox="0 0 100 120" fill="#065f46" class="w-40 h-48 bg-decoration"><path d="M50 100V80M30 80C10 70 10 30 50 10C90 30 90 70 70 80H30Z"/><circle cx="40" cy="40" r="5" fill="#047857"/><circle cx="60" cy="55" r="5" fill="#047857"/></svg>`,
+                svgs: {
+                    producer: `<svg viewBox="0 0 48 48" fill="#13392F"><path d="M24 44c0-10 0-20 0-20M24 24c-8-2-14-10-14-10s8 0 14 6M24 24c8-2 14-10 14-10s-8 0-14 6M24 32c-6-2-10-8-10-8s6 0 10 4M24 32c6-2 10-8 10-8s-6 0-10 4" stroke="#13392F" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="12" r="3"/><circle cx="16" cy="18" r="2"/><circle cx="32" cy="18" r="2"/></svg>`,
+                    herbivore: `<svg viewBox="0 0 48 48" fill="currentColor"><path d="M10 24c0-4 4-8 10-8h12c4 0 8 4 8 8v6c0 2-2 4-4 4h-20c-4 0-6-2-6-10Z"/><circle cx="34" cy="22" r="2" fill="white"/><path d="M12 34l-2 6M36 34l-2 6" stroke="currentColor" stroke-width="3"/></svg>`,
+                    carnivore: `<svg viewBox="0 0 48 48" fill="currentColor"><path d="M8 20c0-6 6-10 16-10s16 4 16 10v12c0 4-4 8-10 8H18c-6 0-10-4-10-8V20Z"/><path d="M12 15l4-8M36 15l-4-8" stroke="currentColor" stroke-width="3"/><circle cx="18" cy="20" r="3" fill="white"/><circle cx="30" cy="20" r="3" fill="white"/></svg>`
+                }
+            },
+            {
+                name: "Coral Reef",
+                notes: "Seaweed and Algae provide energy. Reef fish graze on the producers, while Sharks maintain the balance of the aquatic community.",
+                colors: { sky: "#38bdf8", ground: "#2563eb" },
+                // tree: `<svg viewBox="0 0 100 120" fill="#fb923c" class="w-32 h-32 bg-decoration"><path d="M50 100c-10-10-20-10-20-30s10-30 20-30s20 10 20 30s-10 20-20 30Z"/><circle cx="40" cy="70" r="3" fill="#ea580c"/><circle cx="60" cy="60" r="3" fill="#ea580c"/></svg>`,
+                svgs: {
+                    producer: `<svg viewBox="0 0 48 48" fill="currentColor"><path d="M12 44c2-8-4-12 0-20s8-4 4-12M24 44c2-8-4-12 0-20s8-4 4-12M36 44c2-8-4-12 0-20s8-4 4-12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="15" cy="15" r="2" opacity="0.5"/><circle cx="27" cy="25" r="1.5" opacity="0.5"/><circle cx="39" cy="10" r="2.5" opacity="0.5"/></svg>`,
+                    herbivore: `<svg viewBox="0 0 48 48" fill="currentColor"><path d="M4 24c8-10 24-10 32 0s-24 10-32 0Z"/><path d="M36 24l8-6v12l-8-6Z"/><circle cx="12" cy="22" r="2" fill="white"/></svg>`,
+                    carnivore: `<svg viewBox="0 0 48 48" fill="currentColor"><path d="M2 24c10-6 25-6 38 0l6-4v8l-6-4c-13 6-28 6-38 0Z"/><path d="M15 18l5 6-5 6" fill="white" opacity="0.5"/></svg>`
+                }
+            },
+            {
+                name: "Highland Grassland",
+                notes: "Tall grass is the primary producer. Highland cattle or insects are the herbivores, and Birds of Prey are the apex carnivores.",
+                colors: { sky: "#bae6fd", ground: "#a3e635" },
+                tree: `<svg viewBox="0 0 100 120" fill="#3f6212" class="w-36 h-56 bg-decoration"><path d="M50 100V70L20 40h60L50 70Z"/><path d="M50 60L30 30h40L50 60Z"/></svg>`,
+                svgs: {
+                    producer: `<svg viewBox="0 0 48 48" fill="#40692F" stroke="#40692F" stroke-width="3" stroke-linecap="round"><path d="M24 44L24 15M10 44c2-15 8-25 14-30M38 44c-2-15-8-25-14-30M16 44c2-10 4-18 8-22M32 44c-2-10-4-18-8-22"/></svg>`,
+                    herbivore: `<svg viewBox="0 0 48 48" fill="currentColor"><path d="M8 28c0-6 4-10 10-10h12c6 0 10 4 10 10v4h-32v-4Z"/><path d="M14 18l-4-8M34 18l4-8" stroke="currentColor" stroke-width="3"/><circle cx="32" cy="24" r="2" fill="white"/></svg>`,
+                    carnivore: `<svg viewBox="0 0 48 48" fill="currentColor"><path d="M4 20s10-8 20-8 20 8 20 8l-4 4s-8-4-16-4-16 4-16 4l-4-4Z"/><path d="M24 20l-4 8h8l-4-8Z"/><circle cx="18" cy="18" r="1.5" fill="white"/><circle cx="30" cy="18" r="1.5" fill="white"/></svg>`
+                }
+            }
+        ];
+
+        let rounds = [];
+        let currentRoundIdx = 0;
+        let entities = [];
+
+        function startGame() {
+            rounds = [...ecosystemPool].sort(() => Math.random() - 0.5);
+            gsap.to("#start-screen", { opacity: 0, pointerEvents: 'none', duration: 0.5 });
+            loadRound();
+        }
+
+        function loadRound() {
+            const eco = rounds[currentRoundIdx];
+            entities = [];
+            document.getElementById('entities-layer').innerHTML = '';
+            const decoLayer = document.getElementById('bg-decoration-layer');
+            decoLayer.innerHTML = '';
+            
+            // Add 3-4 background trees
+            // for(let i=0; i<4; i++) {
+            //     const deco = document.createElement('div');
+            //     deco.innerHTML = eco.tree;
+            //     decoLayer.appendChild(deco);
+            // }
+
+            document.getElementById('current-eco-name').innerText = eco.name;
+            document.getElementById('round-title').innerText = eco.name;
+            document.getElementById('eco-notes').innerText = eco.notes;
+            document.getElementById('round-indicator').innerText = `${currentRoundIdx + 1} / 3`;
+            
+            document.getElementById('svg-p-icon').innerHTML = eco.svgs.producer;
+            document.getElementById('svg-h-icon').innerHTML = eco.svgs.herbivore;
+            document.getElementById('svg-c-icon').innerHTML = eco.svgs.carnivore;
+            document.getElementById('eco-icon-large').innerHTML = eco.svgs.producer;
+            
+            gsap.to("#game-canvas", { 
+                background: `linear-gradient(to bottom, ${eco.colors.sky} 0%, ${eco.colors.sky} 60%, ${eco.colors.ground} 60%, ${eco.colors.ground} 100%)`,
+                duration: 1 
+            });
+
+            updateStats();
+
+            const noteScreen = document.getElementById('note-screen');
+            noteScreen.classList.remove('hidden');
+            gsap.to(noteScreen, { opacity: 1, duration: 0.5 });
+        }
+
+        function closeNotes() {
+            gsap.to("#note-screen", { opacity: 0, pointerEvents: 'none', duration: 0.5, onComplete: () => {
+                document.getElementById('note-screen').classList.add('hidden');
+                document.getElementById('note-screen').style.pointerEvents = 'auto';
+            }});
+        }
+
+        function addEntity(type) {
+            const canvas = document.getElementById('entities-layer');
+            const el = document.createElement('div');
+            el.className = 'eco-entity absolute w-16 h-16';
+            
+            const x = Math.random() * 85 + 5;
+            const y = type === 'producer' ? (Math.random() * 15 + 70) : (Math.random() * 20 + 58);
+            
+            el.style.left = `${x}%`;
+            el.style.top = `${y}%`;
+
+            const eco = rounds[currentRoundIdx];
+            const color = type === 'producer' ? '#059669' : type === 'herbivore' ? '#d97706' : '#b91c1c';
+            el.innerHTML = `<div style="color: ${color}">${eco.svgs[type]}</div>`;
+            
+            canvas.appendChild(el);
+            entities.push({ type, el });
+            updateStats();
+
+            gsap.from(el, { scale: 0, rotation: -20, duration: 0.5, ease: "back.out(2)" });
+            playPop(type === 'producer' ? 300 : type === 'herbivore' ? 500 : 700);
+
+            if (type !== 'producer') {
+                gsap.to(el, {
+                    x: "random(-30, 30)",
+                    y: "random(-10, 10)",
+                    duration: "random(4, 6)",
+                    repeat: -1,
+                    yoyo: true,
+                    ease: "sine.inOut"
+                });
+            }
+        }
+
+        function updateStats() {
+            const p = entities.filter(e => e.type === 'producer').length;
+            const h = entities.filter(e => e.type === 'herbivore').length;
+            const c = entities.filter(e => e.type === 'carnivore').length;
+
+            let balance = 0;
+            if (p >= 4 && h >= 2 && c >= 1) {
+                if (p > h && h > c) balance = 100;
+                else if (p > h) balance = 70;
+                else balance = 40;
+            } else {
+                balance = Math.min(90, (p * 10) + (h * 15) + (c * 20));
+            }
+
+            const bar = document.getElementById('balance-bar');
+            gsap.to(bar, { width: `${balance}%`, duration: 0.5 });
+            
+            if (balance === 100) {
+                bar.classList.replace('bg-red-500', 'bg-green-500');
+                document.getElementById('next-btn').classList.remove('locked');
+            } else {
+                bar.classList.replace('bg-green-500', 'bg-red-500');
+                document.getElementById('next-btn').classList.add('locked');
+            }
+        }
+
+        function nextRound() {
+            currentRoundIdx++;
+            if (currentRoundIdx >= rounds.length) {
+                const end = document.getElementById('end-screen');
+                end.classList.remove('hidden');
+                gsap.to(end, { opacity: 1, duration: 0.5 });
+            } else {
+                gsap.to("main", { y: -20, opacity: 0, duration: 0.4, onComplete: () => {
+                    loadRound();
+                    gsap.to("main", { y: 0, opacity: 1, duration: 0.4 });
+                }});
+            }
+        }
+
+        function resetRound() {
+            entities = [];
+            document.getElementById('entities-layer').innerHTML = '';
+            updateStats();
+            playPop(200, 'square');
+        }
+
+        const bubbleContainer = document.getElementById('bubble-container');
+        for (let i = 0; i < 15; i++) {
+            const b = document.createElement('div');
+            b.className = 'bubble bg-white/5';
+            const size = Math.random() * 150 + 50;
+            b.style.width = `${size}px`; b.style.height = `${size}px`;
+            b.style.left = `${Math.random() * 100}vw`;
+            b.style.top = `${Math.random() * 100}vh`;
+            bubbleContainer.appendChild(b);
+            gsap.to(b, { y: -100, x: "random(-50, 50)", duration: "random(10, 20)", repeat: -1, yoyo: true, ease: "power1.inOut" });
+        }
+    </script>
+</body>
+</html>

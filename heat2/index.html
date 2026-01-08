@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thermal Quest: Cyber Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-orange: #ff9d00;
+            --neon-blue: #00f2ff;
+            --neon-pink: #ff00ea;
+            --glass: rgba(15, 23, 42, 0.8);
+        }
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #0f172a, #020617);
+            color: #f8fafc;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .cyber-panel {
+            background: var(--glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+            border-radius: 24px;
+        }
+        .tool-btn {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid transparent;
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .tool-btn:hover {
+            transform: scale(1.05) translateY(-5px);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .tool-active[data-type="conduction"] { border-color: var(--neon-pink); box-shadow: 0 0 20px rgba(255, 0, 234, 0.4); }
+        .tool-active[data-type="convection"] { border-color: var(--neon-blue); box-shadow: 0 0 20px rgba(0, 242, 255, 0.4); }
+        .tool-active[data-type="radiation"] { border-color: var(--neon-orange); box-shadow: 0 0 20px rgba(255, 157, 0, 0.4); }
+        
+        .temp-glow {
+            text-shadow: 0 0 10px var(--neon-orange), 0 0 20px var(--neon-orange);
+        }
+        .progress-segment {
+            height: 100%;
+            border-right: 2px solid rgba(0,0,0,0.2);
+            transition: all 0.5s ease;
+        }
+        canvas {
+            image-rendering: antialiased;
+        }
+        .hud-text {
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 700;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .scanning {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col p-4 md:p-8">
+
+    <!-- Top HUD -->
+    <header class="w-full max-w-6xl mx-auto flex justify-between items-start gap-6 mb-6 z-10">
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-4">
+                <div class="p-3 bg-white/5 cyber-panel rounded-xl">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L12 22M12 2L15 5M12 2L9 5M12 22L9 19M12 22L15 19" stroke="var(--neon-blue)" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="12" cy="12" r="4" stroke="var(--neon-pink)" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-bold tracking-tighter text-white">THERMAL<span class="text-cyan-400">QUEST</span></h1>
+                    <p class="hud-text text-[10px] text-slate-400">Quantum Investigation Unit</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3 mt-2">
+                <div class="w-48 h-3 bg-slate-900 rounded-full overflow-hidden border border-white/10 flex">
+                    <div id="progress-bar" class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-700" style="width: 10%"></div>
+                </div>
+                <span id="level-txt" class="hud-text text-xs text-cyan-400">SCAN 01/10</span>
+            </div>
+        </div>
+
+        <div class="cyber-panel px-8 py-4 flex flex-col items-end">
+            <span class="hud-text text-[10px] text-slate-400 mb-1">Target Energy Level</span>
+            <div id="temp-val" class="text-4xl font-bold temp-glow transition-all">25°C</div>
+        </div>
+    </header>
+
+    <!-- Main Lab Viewport -->
+    <main id="viewport" class="relative w-full max-w-6xl mx-auto flex-1 cyber-panel overflow-hidden border border-white/5 mb-6 group">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- Scan Lines Effect -->
+        <div class="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]"></div>
+
+        <!-- Start/Intro Overlay -->
+        <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center p-12 text-center transition-all duration-700 bg-slate-950/90">
+            <div class="w-16 h-16 mb-4 relative">
+                <div class="absolute inset-0 bg-cyan-500/20 blur-2xl rounded-full"></div>
+                <svg viewBox="0 0 100 100" class="relative z-10 w-full h-full text-cyan-400">
+                    <circle cx="50" cy="50" r="40" stroke="currentColor" stroke-width="2" fill="none" class="scanning"/>
+                    <path d="M30 50 L70 50 M50 30 L50 70" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h2 class="text-2xl md:text-3xl font-bold mb-3 tracking-tighter text-white uppercase">Initializing Lab...</h2>
+            <p class="text-slate-400 max-w-sm mb-6 text-sm md:text-base leading-relaxed">
+                Analyze the molecular structure of each object and apply the correct <span class="text-white font-bold">Heat Transfer Protocol</span> to reach equilibrium.
+            </p>
+            <button onclick="startGame()" class="px-8 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-lg font-bold rounded-xl shadow-[0_0_20px_rgba(34,211,238,0.3)] transform active:scale-95 transition-all hud-text">
+                Begin Sequence
+            </button>
+        </div>
+
+        <!-- HUD Alerts -->
+        <div id="message-box" class="absolute top-8 left-1/2 -translate-x-1/2 cyber-panel px-6 py-3 text-sm font-bold opacity-0 transition-all z-40 border-cyan-500/50 text-cyan-400">
+            SYSTEM READY
+        </div>
+
+        <!-- Object Label -->
+        <div class="absolute bottom-6 left-6 flex items-center gap-3">
+            <div class="w-1 h-12 bg-cyan-500 rounded-full"></div>
+            <div>
+                <p class="hud-text text-[10px] text-slate-400">Target Subject</p>
+                <p id="object-name" class="text-2xl font-bold text-white uppercase tracking-wider">Awaiting Scan...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Tactical Tools -->
+    <div class="w-full max-w-6xl mx-auto grid grid-cols-3 gap-4 md:gap-8 pb-4">
+        <!-- Conduction -->
+        <button onclick="selectTool('conduction')" id="btn-conduction" data-type="conduction" class="tool-btn cyber-panel p-6 flex flex-col items-center gap-4">
+            <div class="w-16 h-16 rounded-full flex items-center justify-center bg-pink-500/10 text-pink-500">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="10" width="18" height="4" rx="1"/>
+                    <path d="M7 8v8M12 8v8M17 8v8" stroke-dasharray="2 2"/>
+                    <path d="M3 12h18" stroke-width="3" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="text-center">
+                <span class="hud-text text-sm block">Conduction</span>
+                <span class="text-[10px] text-slate-500">SOLID CONTACT</span>
+            </div>
+        </button>
+
+        <!-- Convection -->
+        <button onclick="selectTool('convection')" id="btn-convection" data-type="convection" class="tool-btn cyber-panel p-6 flex flex-col items-center gap-4">
+            <div class="w-16 h-16 rounded-full flex items-center justify-center bg-cyan-500/10 text-cyan-400">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2C7 2 2 7 2 12C2 17 7 22 12 22C17 22 22 17 22 12" stroke-dasharray="4 2"/>
+                    <path d="M12 6v12M8 10l4-4 4 4M16 14l-4 4-4-4" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="text-center">
+                <span class="hud-text text-sm block">Convection</span>
+                <span class="text-[10px] text-slate-500">FLUID MOTION</span>
+            </div>
+        </button>
+
+        <!-- Radiation -->
+        <button onclick="selectTool('radiation')" id="btn-radiation" data-type="radiation" class="tool-btn cyber-panel p-6 flex flex-col items-center gap-4">
+            <div class="w-16 h-16 rounded-full flex items-center justify-center bg-orange-500/10 text-orange-400">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="4" fill="currentColor" fill-opacity="0.2"/>
+                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="text-center">
+                <span class="hud-text text-sm block">Radiation</span>
+                <span class="text-[10px] text-slate-500">ENERGY WAVES</span>
+            </div>
+        </button>
+    </div>
+
+    <!-- Win State -->
+    <div id="win-modal" class="fixed inset-0 bg-slate-950/95 z-[100] hidden flex flex-col items-center justify-center p-8 text-center backdrop-blur-xl">
+        <div class="cyber-panel p-16 max-w-2xl transform scale-90 transition-all duration-500" id="win-content">
+            <div class="w-32 h-32 bg-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-8 rotate-12 shadow-[0_0_50px_rgba(34,211,238,0.3)]">
+                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#020617" stroke-width="2.5">
+                    <path d="M12 2L15 8H22L17 13L18 20L12 16L6 20L7 13L2 8H9L12 2Z" fill="currentColor"/>
+                </svg>
+            </div>
+            <h2 class="text-6xl font-bold mb-4 tracking-tighter">DATA SYNC COMPLETE</h2>
+            <p class="text-slate-400 text-xl mb-12 max-w-md mx-auto">Master Investigator status achieved. All thermal anomalies have been resolved.</p>
+            <button onclick="location.reload()" class="w-full py-6 bg-white text-slate-950 text-2xl font-bold rounded-2xl hover:bg-cyan-400 transition-colors hud-text">Restart Simulation</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const tempVal = document.getElementById('temp-val');
+        const progressBar = document.getElementById('progress-bar');
+        const levelTxt = document.getElementById('level-txt');
+        const objectNameTxt = document.getElementById('object-name');
+        const msgBox = document.getElementById('message-box');
+        const overlay = document.getElementById('overlay');
+
+        const OBJECT_LIBRARY = [
+            { name: "Structural Iron Beam", type: "conduction", desc: "Solid contact required" },
+            { name: "Convection Soup Pot", type: "convection", desc: "Internal currents active" },
+            { name: "Solar Array Plate", type: "radiation", desc: "Photonic absorption" },
+            { name: "Titanium Utensil", type: "conduction", desc: "Thermal conductivity high" },
+            { name: "Atmospheric Balloon", type: "convection", desc: "Air density variable" },
+            { name: "Infrared Toaster", type: "radiation", desc: "Emitter active" },
+            { name: "Carbon Steel Skillet", type: "conduction", desc: "Base heat transfer" },
+            { name: "Plasma Lava Lamp", type: "convection", desc: "Viscous flow pattern" },
+            { name: "Planetary Core", type: "radiation", desc: "Deep space emission" },
+            { name: "Cryogenic Copper", type: "conduction", desc: "Molecular vibration" }
+        ];
+
+        let state = {
+            active: false,
+            levelIndex: 0,
+            temp: 25,
+            target: 100,
+            tool: null,
+            mouse: { x: 0, y: 0, down: false },
+            shuffledObjects: [],
+            bubbles: [],
+            waves: [],
+            scanPulse: 0
+        };
+
+        function initAudio() {
+            window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(freq, type = 'sine', vol = 0.1, dur = 0.2) {
+            if (!window.audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            g.gain.setValueAtTime(vol, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+            osc.connect(g);
+            g.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + dur);
+        }
+
+        function resize() {
+            const viewport = document.getElementById('viewport');
+            canvas.width = viewport.clientWidth;
+            canvas.height = viewport.clientHeight;
+        }
+
+        function selectTool(tool) {
+            state.tool = tool;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('tool-active'));
+            document.getElementById(`btn-${tool}`).classList.add('tool-active');
+            playSound(300, 'square', 0.02, 0.1);
+        }
+
+        function showHUDMessage(text, isError = false) {
+            msgBox.textContent = text;
+            msgBox.style.borderColor = isError ? 'var(--neon-pink)' : 'var(--neon-blue)';
+            msgBox.style.color = isError ? 'var(--neon-pink)' : 'var(--neon-blue)';
+            msgBox.style.opacity = '1';
+            setTimeout(() => msgBox.style.opacity = '0', 2000);
+        }
+
+        function startGame() {
+            initAudio();
+            state.shuffledObjects = [...OBJECT_LIBRARY].sort(() => Math.random() - 0.5);
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 500);
+            state.active = true;
+            loadLevel();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function loadLevel() {
+            const current = state.shuffledObjects[state.levelIndex];
+            objectNameTxt.textContent = current.name;
+            state.temp = 25;
+            state.bubbles = [];
+            state.waves = [];
+            levelTxt.textContent = `SCAN ${String(state.levelIndex + 1).padStart(2, '0')}/10`;
+            progressBar.style.width = `${((state.levelIndex) / 10) * 100}%`;
+            showHUDMessage(`IDENTIFYING: ${current.name}`);
+        }
+
+        canvas.addEventListener('mousemove', e => {
+            const r = canvas.getBoundingClientRect();
+            state.mouse.x = (e.clientX - r.left) * (canvas.width / r.width);
+            state.mouse.y = (e.clientY - r.top) * (canvas.height / r.height);
+        });
+        canvas.addEventListener('mousedown', () => state.mouse.down = true);
+        window.addEventListener('mouseup', () => state.mouse.down = false);
+        canvas.addEventListener('touchstart', e => { state.mouse.down = true; e.preventDefault(); }, {passive: false});
+        canvas.addEventListener('touchend', () => state.mouse.down = false);
+        canvas.addEventListener('touchmove', e => {
+            const r = canvas.getBoundingClientRect();
+            state.mouse.x = (e.touches[0].clientX - r.left) * (canvas.width / r.width);
+            state.mouse.y = (e.touches[0].clientY - r.top) * (canvas.height / r.height);
+            e.preventDefault();
+        }, {passive: false});
+
+        function update() {
+            if (!state.active) return;
+            const current = state.shuffledObjects[state.levelIndex];
+
+            if (state.temp > 25) state.temp -= 0.05;
+
+            if (state.mouse.down && state.tool) {
+                if (state.tool === current.type) {
+                    state.temp += 0.8;
+                    if (Math.random() > 0.8) playSound(400 + state.temp * 2, 'sine', 0.03, 0.1);
+                    
+                    // Visual FX
+                    if (state.tool === 'convection') {
+                        state.bubbles.push({ x: state.mouse.x, y: state.mouse.y, life: 1, size: 2 + Math.random()*8 });
+                    } else if (state.tool === 'radiation') {
+                        state.waves.push({ x: state.mouse.x, y: state.mouse.y, r: 0, life: 1 });
+                    }
+                } else {
+                    state.temp = Math.max(25, state.temp - 0.8);
+                    document.getElementById('viewport').style.boxShadow = 'inset 0 0 50px rgba(255,0,0,0.2)';
+                    setTimeout(() => document.getElementById('viewport').style.boxShadow = '', 100);
+                }
+            }
+
+            // Cleanup FX
+            state.bubbles.forEach((b, i) => { b.y -= 3; b.life -= 0.02; if (b.life <= 0) state.bubbles.splice(i, 1); });
+            state.waves.forEach((w, i) => { w.r += 6; w.life -= 0.04; if (w.life <= 0) state.waves.splice(i, 1); });
+
+            tempVal.textContent = `${Math.floor(state.temp)}°C`;
+            tempVal.style.color = `rgb(255, ${255 - (state.temp - 25) * 2}, ${255 - (state.temp - 25) * 4})`;
+
+            if (state.temp >= state.target) {
+                state.temp = 25;
+                state.levelIndex++;
+                if (state.levelIndex >= state.shuffledObjects.length) {
+                    state.active = false;
+                    const winModal = document.getElementById('win-modal');
+                    winModal.classList.remove('hidden');
+                    setTimeout(() => document.getElementById('win-content').style.transform = 'scale(1)', 10);
+                    playSound(600, 'sine', 0.1, 1);
+                } else {
+                    playSound(800, 'sine', 0.1, 0.4);
+                    loadLevel();
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const current = state.shuffledObjects[state.levelIndex];
+
+            // Background Grid
+            ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
+            for(let i=0; i<canvas.height; i+=40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            const scale = Math.min(canvas.width, canvas.height) / 600;
+            ctx.scale(scale, scale);
+
+            // Item Shadow/Glow
+            const glow = (state.temp - 25) * 2;
+            ctx.shadowBlur = 20 + glow;
+            ctx.shadowColor = `rgba(255, 100, 0, ${glow/100})`;
+
+            // Draw illustrative objects
+            ctx.lineWidth = 4;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            if (current.type === 'conduction') {
+                ctx.strokeStyle = '#94a3b8';
+                ctx.fillStyle = '#1e293b';
+                if (current.name.includes("Beam")) {
+                    ctx.beginPath(); ctx.roundRect(-180, -20, 360, 40, 5); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-180, 0); ctx.lineTo(180, 0); ctx.stroke();
+                } else if (current.name.includes("Utensil")) {
+                    ctx.beginPath(); ctx.ellipse(-100, 0, 40, 60, Math.PI/2, 0, Math.PI*2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-60, 0); ctx.lineTo(140, 0); ctx.stroke();
+                } else {
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.beginPath(); ctx.moveTo(-150, 0); ctx.lineTo(150, 0); ctx.stroke();
+                    ctx.strokeRect(-160, -10, 320, 20);
+                }
+            } else if (current.type === 'convection') {
+                ctx.strokeStyle = '#22d3ee';
+                ctx.fillStyle = 'rgba(34, 211, 238, 0.1)';
+                if (current.name.includes("Pot")) {
+                    ctx.beginPath(); ctx.roundRect(-100, -60, 200, 140, 10); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-100, -30); ctx.lineTo(-130, -30); ctx.lineTo(-130, 10); ctx.lineTo(-100, 10); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(100, -30); ctx.lineTo(130, -30); ctx.lineTo(130, 10); ctx.lineTo(100, 10); ctx.stroke();
+                } else if (current.name.includes("Balloon")) {
+                    ctx.beginPath(); ctx.arc(0, -50, 80, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    ctx.strokeRect(-30, 60, 60, 40);
+                    ctx.beginPath(); ctx.moveTo(-30, 60); ctx.lineTo(-70, 0); ctx.moveTo(30, 60); ctx.lineTo(70, 0); ctx.stroke();
+                } else {
+                    ctx.beginPath(); ctx.roundRect(-50, -100, 100, 200, 40); ctx.fill(); ctx.stroke();
+                }
+            } else if (current.type === 'radiation') {
+                ctx.strokeStyle = '#f59e0b';
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
+                if (current.name.includes("Solar")) {
+                    ctx.rotate(-Math.PI/6);
+                    ctx.strokeRect(-120, -80, 240, 160);
+                    for(let i=-120; i<120; i+=40) { ctx.beginPath(); ctx.moveTo(i, -80); ctx.lineTo(i, 80); ctx.stroke(); }
+                } else if (current.name.includes("Toaster")) {
+                    ctx.beginPath(); ctx.roundRect(-100, -50, 200, 120, 20); ctx.fill(); ctx.stroke();
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.beginPath(); ctx.moveTo(-80, 0); ctx.lineTo(80, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-80, 20); ctx.lineTo(80, 20); ctx.stroke();
+                } else {
+                    ctx.beginPath(); ctx.arc(0, 0, 100, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0, 0, 120, 0, Math.PI*2); ctx.setLineDash([10, 20]); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+            ctx.restore();
+
+            // FX Rendering
+            state.bubbles.forEach(b => {
+                ctx.strokeStyle = `rgba(34, 211, 238, ${b.life})`;
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.stroke();
+            });
+            state.waves.forEach(w => {
+                ctx.strokeStyle = `rgba(251, 146, 60, ${w.life})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, Math.PI*2); ctx.stroke();
+            });
+            
+            // Interaction Pointer
+            if (state.mouse.down && state.tool) {
+                const colors = { conduction: '#ff00ea', convection: '#00f2ff', radiation: '#ff9d00' };
+                ctx.strokeStyle = colors[state.tool];
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(state.mouse.x, state.mouse.y, 40 + Math.sin(Date.now()/100)*5, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(state.mouse.x - 10, state.mouse.y); ctx.lineTo(state.mouse.x + 10, state.mouse.y); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(state.mouse.x, state.mouse.y - 10); ctx.lineTo(state.mouse.x, state.mouse.y + 10); ctx.stroke();
+            }
+        }
+
+        function gameLoop() {
+            if (state.active) {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        window.addEventListener('resize', resize);
+        window.onload = resize;
+    </script>
+</body>
+</html>

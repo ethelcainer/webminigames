@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth's Aegis - 32-Bit Defense</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'VT323', monospace;
+            color: #fff;
+            user-select: none;
+            touch-action: none;
+            image-rendering: pixelated;
+        }
+        .font-pixel { font-family: 'Press Start 2P', cursive; }
+        .font-retro { font-family: 'VT323', monospace; }
+        
+        /* CRT Scanline Effect */
+        body::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .pixel-border {
+            border: 4px solid #fff;
+            box-shadow: 6px 6px 0px #000;
+        }
+
+        .life-pixel {
+            width: 18px;
+            height: 18px;
+            background: #f43f5e;
+            box-shadow: 4px 4px 0px #9f1239;
+        }
+
+        .life-empty {
+            background: #1e293b;
+            box-shadow: 4px 4px 0px #0f172a;
+        }
+
+        #game-ui { pointer-events: none; }
+        .interactive { pointer-events: auto; }
+
+        @keyframes flicker {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; }
+            100% { opacity: 0.9; }
+        }
+        .flicker { animation: flicker 0.1s infinite; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas" class="fixed inset-0 z-0"></canvas>
+
+    <!-- HUD -->
+    <div id="game-ui" class="fixed inset-0 z-10 flex flex-col p-6 items-center">
+        <!-- Top Stats Row -->
+        <div class="w-full flex justify-between items-start mb-4">
+            <div class="flex flex-col gap-2">
+                <div class="bg-black/80 p-3 pixel-border border-blue-500">
+                    <div class="text-[10px] text-blue-400 font-pixel mb-1 uppercase">Score</div>
+                    <div id="score" class="text-2xl font-pixel text-white">00000</div>
+                </div>
+                <button id="pause-btn" class="interactive bg-slate-800 p-2 text-[10px] font-pixel text-white border-2 border-slate-500 hover:bg-slate-700 transition-colors">PAUSE [SPACE]</button>
+            </div>
+
+            <!-- Fact Box (Moved to top center) -->
+            <div id="fact-box" class="bg-black/95 p-3 pixel-border border-cyan-500 max-w-[40%] opacity-0 transition-opacity duration-300 translate-y-[-10px]">
+                <div id="fact-title" class="text-cyan-400 font-pixel text-[8px] mb-1">SCANNING...</div>
+                <div id="fact-text" class="text-base text-white uppercase leading-none font-retro"></div>
+            </div>
+
+            <div class="flex gap-2" id="life-container">
+                <div class="life-pixel"></div>
+                <div class="life-pixel"></div>
+                <div class="life-pixel"></div>
+                <div class="life-pixel"></div>
+                <div class="life-pixel"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Screen -->
+    <div id="pause-overlay" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-6">
+        <div class="max-w-md text-center bg-slate-900/90 p-10 pixel-border border-cyan-500">
+            <h2 class="text-4xl font-pixel text-cyan-400 mb-6 flicker uppercase">System Paused</h2>
+            <p class="text-xl text-slate-300 mb-8 font-retro">DEFENSE PROTOCOLS ON STANDBY. ANALYSIS CONTINUING...</p>
+            <button id="resume-btn" class="interactive px-10 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-pixel text-lg shadow-[8px_8px_0_#164e63]">
+                RESUME_MISSION
+            </button>
+        </div>
+    </div>
+
+    <!-- Screens -->
+    <div id="overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6">
+        <div class="max-w-md text-center bg-blue-900/20 p-8 pixel-border border-blue-600">
+            <h1 id="screen-title" class="text-5xl font-pixel text-white mb-6 leading-tight tracking-tighter flicker">EARTH<br>AEGIS</h1>
+            <p id="screen-desc" class="text-2xl text-blue-300 mb-8 uppercase italic">Protect the planet from celestial impact.</p>
+            
+            <div class="grid grid-cols-1 gap-4 text-left text-xl mb-10 font-retro">
+                <div class="flex gap-4 items-center bg-black/50 p-3 border-2 border-slate-700">
+                    <div class="w-8 h-8 bg-amber-700 shadow-[4px_4px_0_#451a03]"></div>
+                    <span class="text-amber-500">ASTEROIDS: MASSIVE & ROCKY</span>
+                </div>
+                <div class="flex gap-4 items-center bg-black/50 p-3 border-2 border-slate-700">
+                    <div class="w-8 h-8 bg-cyan-400 shadow-[4px_4px_0_#0891b2]"></div>
+                    <span class="text-cyan-400">COMETS: ICE & DUST TAILS</span>
+                </div>
+            </div>
+
+            <button id="action-btn" class="interactive w-full py-4 bg-blue-600 hover:bg-blue-400 text-white font-pixel text-lg transition-transform active:scale-95 shadow-[8px_8px_0_#1e3a8a]">
+                INITIATE_DEFENSE
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function beep(freq, type, dur, vol=0.1) {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = type; o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            g.gain.setValueAtTime(vol, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + dur);
+        }
+
+        const SFX = {
+            ping: () => beep(600, 'square', 0.1),
+            boom: () => beep(100, 'sawtooth', 0.5, 0.2),
+            win: () => { beep(440, 'sine', 0.1); setTimeout(() => beep(880, 'sine', 0.2), 100); }
+        };
+
+        const state = {
+            playing: false,
+            paused: false,
+            score: 0,
+            lives: 5,
+            width: 0, height: 0,
+            stars: [],
+            objects: [],
+            paddle: { x: 0, targetX: 0, w: 220, h: 22 }, 
+            earth: { continents: [], clouds: [] },
+            difficulty: 0 
+        };
+
+        const FACTS = [
+            { t: "ASTEROID", d: "Solid rock & metal fragments from the belt between Mars & Jupiter." },
+            { t: "COMET", d: "Dirty snowballs of ice and dust. Tails form when ice sublimates near the sun." },
+            { t: "METEOROID", d: "Small space debris. Becomes a 'Meteor' when friction ignites it in air." },
+            { t: "METEORITE", d: "The rare fragment that survives the fall and strikes the surface." }
+        ];
+
+        function resize() {
+            state.width = canvas.width = window.innerWidth;
+            state.height = canvas.height = window.innerHeight;
+            state.stars = Array.from({length: 80}, () => ({
+                x: Math.random() * state.width,
+                y: Math.random() * state.height,
+                size: Math.ceil(Math.random() * 2),
+                twinkle: Math.random() * 0.1
+            }));
+            state.paddle.x = state.width / 2;
+
+            state.earth.continents = Array.from({length: 20}, () => ({
+                x: (Math.random() - 0.5) * state.width * 2.5,
+                y: Math.random() * 100,
+                w: 100 + Math.random() * 200,
+                h: 50 + Math.random() * 100
+            }));
+            state.earth.clouds = Array.from({length: 10}, () => ({
+                x: (Math.random() - 0.5) * state.width * 2.5,
+                y: Math.random() * 80,
+                w: 150 + Math.random() * 250,
+                vx: 0.05 + Math.random() * 0.08
+            }));
+        }
+
+        function createObj() {
+            const r = Math.random();
+            let type = 'asteroid';
+            if(r > 0.7) type = 'comet';
+            if(r > 0.9) type = 'meteoroid';
+
+            const obj = {
+                type,
+                x: Math.random() * (state.width - 120) + 60,
+                y: -100,
+                vy: 2.2 + Math.random() * 1.5, 
+                vx: (Math.random() - 0.5) * 1.2,
+                size: type === 'asteroid' ? 45 : (type === 'comet' ? 35 : 20),
+                color: type === 'asteroid' ? '#78350f' : (type === 'comet' ? '#22d3ee' : '#94a3b8'),
+                rot: 0,
+                rotV: (Math.random() - 0.5) * 0.05
+            };
+
+            if(type === 'meteoroid') obj.vy += 1.8;
+            if(type === 'comet') obj.vy += 0.8;
+
+            state.objects.push(obj);
+        }
+
+        function togglePause() {
+            if (!state.playing) return;
+            state.paused = !state.paused;
+            document.getElementById('pause-overlay').style.display = state.paused ? 'flex' : 'none';
+            if (state.paused) {
+                // Short low beep for pause
+                beep(200, 'square', 0.1);
+            } else {
+                // Short high beep for resume
+                beep(600, 'square', 0.1);
+            }
+        }
+
+        function update() {
+            if(!state.playing || state.paused) return;
+
+            // FLOW STATE ADJUSTMENTS:
+            state.difficulty = Math.floor(state.score / 300);
+            const maxAllowed = Math.min(7, 2 + Math.floor(state.score / 500));
+            const spawnProb = 0.025 + (state.difficulty * 0.008);
+
+            state.stars.forEach(s => {
+                s.y += 0.1;
+                if(s.y > state.height) s.y = 0;
+            });
+
+            state.paddle.x += (state.paddle.targetX - state.paddle.x) * 0.25;
+
+            // Faster spawning
+            if(Math.random() < spawnProb && state.objects.length < maxAllowed) createObj();
+
+            const earthRadius = state.width * 1.5; 
+            const earthCenterX = state.width / 2;
+            const earthCenterY = state.height + earthRadius * 0.98; 
+
+            for(let i=state.objects.length-1; i>=0; i--) {
+                const o = state.objects[i];
+                o.y += o.vy;
+                o.x += o.vx;
+                o.rot += o.rotV;
+
+                // Paddle Collision
+                const pY = state.height - 140; 
+                if(o.y + o.size/2 > pY && o.y - o.size/2 < pY + state.paddle.h &&
+                   o.x > state.paddle.x - state.paddle.w/2 && o.x < state.paddle.x + state.paddle.w/2) {
+                    
+                    o.vy = -Math.abs(o.vy) * 1.15; 
+                    o.vx += (o.x - state.paddle.x) * 0.18;
+                    state.score += 100;
+                    SFX.ping();
+                    flashFact(o.type);
+                    updateUI();
+                }
+
+                if(o.x < 0 || o.x > state.width) o.vx *= -1;
+
+                // Circular Impact
+                const distToEarthCenter = Math.hypot(o.x - earthCenterX, o.y - earthCenterY);
+                if(distToEarthCenter < earthRadius + 5) {
+                    state.lives--;
+                    SFX.boom();
+                    shake();
+                    state.objects.splice(i, 1);
+                    updateUI();
+                    if(state.lives <= 0) gameOver();
+                }
+
+                if(o.y < -200) state.objects.splice(i, 1);
+            }
+
+            state.earth.clouds.forEach(c => {
+                c.x += c.vx;
+                if(c.x > state.width) c.x = -state.width;
+            });
+        }
+
+        function flashFact(type) {
+            const fact = FACTS.find(f => f.t === type.toUpperCase()) || FACTS[0];
+            const box = document.getElementById('fact-box');
+            document.getElementById('fact-title').innerText = `SCAN: ${fact.t}`;
+            document.getElementById('fact-text').innerText = fact.d;
+            box.style.opacity = '1';
+            clearTimeout(state.factTimer);
+            state.factTimer = setTimeout(() => box.style.opacity = '0', 3500);
+        }
+
+        function updateUI() {
+            document.getElementById('score').innerText = state.score.toString().padStart(5, '0');
+            const container = document.getElementById('life-container');
+            container.innerHTML = '';
+            for(let i=0; i<5; i++) {
+                const l = document.createElement('div');
+                l.className = i < state.lives ? 'life-pixel' : 'life-pixel life-empty';
+                container.appendChild(l);
+            }
+        }
+
+        function shake() {
+            document.body.style.transform = `translate(${(Math.random()-0.5)*15}px, ${(Math.random()-0.5)*15}px)`;
+            setTimeout(() => document.body.style.transform = '', 100);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, state.width, state.height);
+
+            state.stars.forEach(s => {
+                ctx.fillStyle = Math.random() > 0.05 ? '#fff' : '#333';
+                ctx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
+            });
+
+            const earthRadius = state.width * 1.5;
+            const earthCenterX = state.width / 2;
+            const earthCenterY = state.height + earthRadius * 0.98;
+
+            // Atmosphere Glow
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 12;
+            ctx.beginPath();
+            ctx.arc(earthCenterX, earthCenterY, earthRadius + 6, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Sea
+            ctx.fillStyle = '#1e3a8a';
+            ctx.beginPath();
+            ctx.arc(earthCenterX, earthCenterY, earthRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(earthCenterX, earthCenterY, earthRadius, 0, Math.PI * 2);
+            ctx.clip();
+
+            // Continents
+            ctx.fillStyle = '#166534';
+            state.earth.continents.forEach(c => {
+                ctx.fillRect(earthCenterX + c.x, earthCenterY - earthRadius - c.y, c.w, c.h);
+            });
+
+            // Clouds
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            state.earth.clouds.forEach(c => {
+                ctx.fillRect(earthCenterX + c.x, earthCenterY - earthRadius - c.y, c.w, 10);
+            });
+
+            ctx.restore();
+
+            // Objects
+            state.objects.forEach(o => {
+                ctx.save();
+                ctx.translate(Math.floor(o.x), Math.floor(o.y));
+                ctx.rotate(o.rot);
+                
+                if(o.type === 'asteroid') {
+                    ctx.fillStyle = '#78350f';
+                    ctx.fillRect(-o.size/2, -o.size/2, o.size, o.size);
+                    ctx.fillStyle = '#451a03';
+                    ctx.fillRect(-o.size/5, -o.size/5, o.size/3, o.size/3); 
+                } else if(o.type === 'comet') {
+                    ctx.fillStyle = 'rgba(34, 211, 238, 0.4)';
+                    for(let i=0; i<4; i++) {
+                        ctx.fillRect(-8, -8 - (i*12), 16, 12);
+                    }
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(-o.size/2, -o.size/2, o.size, o.size);
+                } else {
+                    const isMeteor = o.y > state.height * 0.35;
+                    ctx.fillStyle = isMeteor ? '#f97316' : '#94a3b8';
+                    ctx.fillRect(-o.size/2, -o.size/2, o.size, o.size);
+                    if(isMeteor) {
+                        ctx.fillStyle = '#fbbf24';
+                        ctx.fillRect(-o.size/4, -o.size/4, o.size/2, o.size/2);
+                    }
+                }
+                ctx.restore();
+            });
+
+            // Paddle
+            const pY = state.height - 140;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(state.paddle.x - state.paddle.w/2, pY, state.paddle.w, state.paddle.h);
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(state.paddle.x - state.paddle.w/2 + 4, pY + 4, state.paddle.w - 8, 4);
+
+            requestAnimationFrame(() => { update(); draw(); });
+        }
+
+        function gameOver() {
+            state.playing = false;
+            document.getElementById('screen-title').innerText = "PLANET\nLOST";
+            document.getElementById('screen-title').classList.add('text-red-500');
+            document.getElementById('screen-desc').innerHTML = `EARTH HAS BEEN COMPROMISED.<br>FINAL SCORE: ${state.score}`;
+            document.getElementById('action-btn').innerText = "REBOOT_DEFENSE";
+            document.getElementById('overlay').style.display = 'flex';
+        }
+
+        const move = (e) => { 
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            state.paddle.targetX = clientX; 
+        };
+        window.addEventListener('mousemove', move);
+        window.addEventListener('touchmove', (e) => { move(e); e.preventDefault(); }, {passive: false});
+
+        // Key listeners for Pause
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                togglePause();
+            }
+        });
+
+        document.getElementById('pause-btn').addEventListener('click', togglePause);
+        document.getElementById('resume-btn').addEventListener('click', togglePause);
+
+        document.getElementById('action-btn').addEventListener('click', () => {
+            if(state.lives <= 0) location.reload();
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            state.playing = true;
+            document.getElementById('overlay').style.display = 'none';
+            SFX.win();
+        });
+
+        window.addEventListener('resize', resize);
+        resize();
+        draw();
+    </script>
+</body>
+</html>

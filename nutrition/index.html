@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutrient Quest: Bio-Bot Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);
+            --glass: rgba(255, 255, 255, 0.7);
+            --primary: #5eead4;
+            --secondary: #fb7185;
+            --accent: #fcd34d;
+            --bot-glow: 0 0 20px rgba(96, 165, 250, 0.5);
+        }
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: #e0f2fe;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+            background-attachment: fixed;
+            overflow: hidden;
+            touch-action: manipulation;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        h1, h2, .title-font {
+            font-family: 'Fredoka One', cursive;
+            letter-spacing: 1px;
+        }
+
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        .bouncy {
+            animation: bounce 3s infinite ease-in-out;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-15px) rotate(2deg); }
+        }
+
+        .pulse-glow {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 5px var(--primary)); }
+            50% { filter: drop-shadow(0 0 20px var(--primary)); }
+        }
+
+        .food-card {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid transparent;
+        }
+
+        .food-card:hover {
+            transform: translateY(-12px) scale(1.1);
+            background: white;
+            border-color: var(--primary);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+        }
+
+        .progress-container {
+            background: rgba(0, 0, 0, 0.1);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .progress-fill {
+            transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            animation: shine 2s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .floating-particle {
+            position: absolute;
+            pointer-events: none;
+            animation: float-up-fade 0.8s forwards ease-out;
+            z-index: 100;
+        }
+
+        @keyframes float-up-fade {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-100px) scale(0); opacity: 0; }
+        }
+
+        /* Custom Scrollbar */
+        #food-shelf::-webkit-scrollbar { height: 8px; }
+        #food-shelf::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
+        #food-shelf::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+
+        .stat-label {
+            text-transform: uppercase;
+            font-weight: 800;
+            font-size: 0.65rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Game Container -->
+    <div id="game-container" class="relative w-full max-w-5xl h-[780px] max-h-[90vh] rounded-[50px] shadow-2xl overflow-hidden flex flex-col border-[12px] border-white/20 glass-panel">
+        
+        <!-- Top Navigation -->
+        <div class="p-6 flex justify-between items-center z-10">
+            <div class="flex gap-6">
+                <!-- Energy Widget -->
+                <div class="flex flex-col gap-1">
+                    <span class="stat-label px-1">Core Energy</span>
+                    <div class="w-40 h-5 progress-container rounded-full overflow-hidden border-2 border-white/50">
+                        <div id="energy-bar" class="progress-fill h-full bg-gradient-to-r from-teal-300 to-emerald-400 w-full"></div>
+                    </div>
+                </div>
+                <!-- Health Widget -->
+                <div class="flex flex-col gap-1">
+                    <span class="stat-label px-1">Chassis Integrity</span>
+                    <div class="w-40 h-5 progress-container rounded-full overflow-hidden border-2 border-white/50">
+                        <div id="health-bar" class="progress-fill h-full bg-gradient-to-r from-rose-400 to-pink-500 w-full"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div id="score-display" class="title-font text-3xl text-white drop-shadow-md">0</div>
+                <div class="stat-label text-white/70">LAB CREDITS</div>
+            </div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div class="flex-1 relative flex flex-col px-10 overflow-hidden">
+            
+            <!-- Message Bubble -->
+            <div class="flex justify-center mb-6">
+                <div id="mission-box" class="bg-white/90 backdrop-blur-md rounded-3xl px-8 py-4 shadow-xl border-b-4 border-teal-500/30 max-w-xl transition-all duration-300">
+                    <p id="mission-text" class="text-slate-700 font-bold text-lg text-center leading-tight">Initializing Bio-Bot Systems...</p>
+                </div>
+            </div>
+
+            <!-- Central Content: Bot & Stats brought closer together -->
+            <div class="flex-1 flex items-center justify-center gap-12 md:gap-24 mb-4">
+                <!-- Centerpiece: The Bot -->
+                <div id="bot-target" class="relative w-72 h-72 flex items-center justify-center">
+                    <!-- Tech Aura -->
+                    <div class="absolute inset-0 bg-teal-400/10 rounded-full blur-3xl pulse-glow"></div>
+                    
+                    <!-- Upgraded SVG Bot -->
+                    <svg id="bot-svg" viewBox="0 0 100 100" class="w-full h-full bouncy z-10">
+                        <!-- Shadows -->
+                        <ellipse cx="50" cy="92" rx="30" ry="5" fill="rgba(0,0,0,0.1)" />
+                        
+                        <!-- Body -->
+                        <defs>
+                            <linearGradient id="botGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#93c5fd;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="20" y="25" width="60" height="55" rx="15" fill="url(#botGrad)" stroke="#1e40af" stroke-width="2" />
+                        
+                        <!-- Screen Face -->
+                        <rect x="30" y="35" width="40" height="25" rx="8" fill="#1e293b" />
+                        <circle id="eye-l" cx="42" cy="45" r="3" fill="#5eead4">
+                             <animate attributeName="opacity" values="1;0.2;1" dur="4s" repeatCount="indefinite" />
+                        </circle>
+                        <circle id="eye-r" cx="58" cy="45" r="3" fill="#5eead4">
+                             <animate attributeName="opacity" values="1;0.2;1" dur="4s" repeatCount="indefinite" />
+                        </circle>
+                        
+                        <!-- Mouth/Light -->
+                        <path d="M40 54 Q50 58 60 54" stroke="#5eead4" stroke-width="2" fill="none" stroke-linecap="round" />
+                        
+                        <!-- Antenna -->
+                        <path d="M50 25 L50 10" stroke="#3b82f6" stroke-width="3" />
+                        <circle cx="50" cy="8" r="4" fill="#fb7185">
+                            <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite" />
+                        </circle>
+                        
+                        <!-- Arms -->
+                        <path d="M20 50 Q10 50 10 65" stroke="#3b82f6" stroke-width="6" fill="none" stroke-linecap="round" />
+                        <path d="M80 50 Q90 50 90 65" stroke="#3b82f6" stroke-width="6" fill="none" stroke-linecap="round" />
+                    </svg>
+                    
+                    <!-- Interactive Hitbox -->
+                    <div id="bot-drop-zone" class="absolute inset-0 rounded-full cursor-pointer hover:bg-white/5 transition-all"></div>
+                </div>
+
+                <!-- Holographic Stats Panel -->
+                <div class="w-72 bg-slate-900/80 rounded-[2rem] p-6 border border-white/20 shadow-2xl backdrop-blur-xl">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></div>
+                        <h3 class="title-font text-teal-400 text-xs tracking-widest uppercase">Bio-System Analysis</h3>
+                    </div>
+                    <div id="nutrient-stats" class="space-y-4">
+                        <div class="group">
+                            <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>CARBOHYDRATES</span><span id="stat-carb" class="text-teal-300 font-bold">0g</span></div>
+                            <div class="h-1 bg-slate-800 rounded-full overflow-hidden"><div id="bar-carb" class="h-full bg-teal-400 transition-all duration-500" style="width:0%"></div></div>
+                        </div>
+                        <div class="group">
+                            <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>PROTEINS</span><span id="stat-protein" class="text-rose-300 font-bold">0g</span></div>
+                            <div class="h-1 bg-slate-800 rounded-full overflow-hidden"><div id="bar-protein" class="h-full bg-rose-400 transition-all duration-500" style="width:0%"></div></div>
+                        </div>
+                        <div class="group">
+                            <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>LIPIDS (FATS)</span><span id="stat-fat" class="text-amber-300 font-bold">0g</span></div>
+                            <div class="h-1 bg-slate-800 rounded-full overflow-hidden"><div id="bar-fat" class="h-full bg-amber-400 transition-all duration-500" style="width:0%"></div></div>
+                        </div>
+                        <div class="group">
+                            <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>HYDRATION/FIBRE</span><span id="stat-other" class="text-blue-300 font-bold">0%</span></div>
+                            <div class="h-1 bg-slate-800 rounded-full overflow-hidden"><div id="bar-other" class="h-full bg-blue-400 transition-all duration-500" style="width:0%"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Food Lab Shelf: Added pt-6 to avoid clipping hover translateY -->
+            <div class="mb-6 mt-auto">
+                <div class="stat-label mb-1 text-white/60 text-center">Available Bio-Matter</div>
+                <div id="food-shelf" class="flex gap-4 overflow-x-auto pt-6 pb-4 px-2 justify-center scroll-smooth overflow-y-visible">
+                    <!-- Food items injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="overlay" class="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center text-white z-50 transition-all duration-700">
+            <div class="relative mb-10">
+                <div class="absolute -inset-10 bg-teal-500/20 blur-3xl animate-pulse"></div>
+                <h1 class="text-7xl md:text-8xl text-center leading-none">NUTRIENT<br><span class="text-teal-400">QUEST</span></h1>
+            </div>
+            <p class="mb-10 text-slate-400 text-lg font-medium tracking-wide">Optimization Protocol: Grade 8 Nutrition Lab</p>
+            <button id="start-btn" class="group relative px-12 py-5 bg-teal-500 rounded-full overflow-hidden transition-all hover:scale-110 active:scale-95 shadow-2xl">
+                <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                <span class="relative title-font text-2xl text-slate-900">INITIATE LAB</span>
+            </button>
+        </div>
+
+        <!-- Game Over -->
+        <div id="result-overlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex flex-col items-center justify-center z-50 hidden text-white text-center">
+            <h2 class="text-5xl text-teal-400 mb-2 title-font">ANALYSIS COMPLETE</h2>
+            <p class="text-slate-400 mb-8 tracking-widest uppercase text-sm">Session Data Summary</p>
+            <div class="text-8xl mb-8 title-font text-white" id="final-score">0</div>
+            <div id="rank-text" class="text-2xl text-rose-400 mb-12 font-bold px-8 py-2 border-2 border-rose-400 rounded-full">Senior Nutritionist</div>
+            <button onclick="location.reload()" class="bg-white text-slate-900 px-12 py-4 rounded-full title-font text-xl hover:bg-teal-400 transition-colors shadow-xl">REBOOT LAB</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA & SVGS ---
+        const FOODS = [
+            { id: 'bread', name: 'Carbs', class: 'Carbohydrate', value: 20, color: '#fcd34d', 
+              svg: `<path d="M20 70 Q20 30 50 15 Q80 30 80 70 Z" fill="#fcd34d"/><path d="M20 70 L80 70 L80 85 Q50 90 20 85 Z" fill="#d97706"/><circle cx="35" cy="40" r="2" fill="rgba(0,0,0,0.1)"/><circle cx="65" cy="45" r="2" fill="rgba(0,0,0,0.1)"/>` },
+            { id: 'chicken', name: 'Protein', class: 'Protein', value: 25, color: '#fb7185',
+              svg: `<path d="M30 30 Q50 10 70 30 Q90 50 70 70 Q50 90 30 70 Q10 50 30 30" fill="#f472b6"/><circle cx="45" cy="45" r="5" fill="#fce7f3" opacity="0.4"/>` },
+            { id: 'butter', name: 'Fats', class: 'Fat', value: 15, color: '#fbbf24',
+              svg: `<rect x="25" y="40" width="50" height="30" rx="8" fill="#fbbf24"/><path d="M25 48 L75 48" stroke="#d97706" stroke-width="4" opacity="0.3"/>` },
+            { id: 'spinach', name: 'Vitamins', class: 'Vitamins', value: 10, color: '#4ade80',
+              svg: `<path d="M50 20 Q80 40 50 85 Q20 40 50 20" fill="#22c55e"/><path d="M50 85 V30" stroke="#14532d" stroke-width="2"/>` },
+            { id: 'water', name: 'Water', class: 'Water', value: 5, color: '#38bdf8',
+              svg: `<path d="M35 30 L65 30 L60 85 Q50 92 40 85 Z" fill="#7dd3fc"/><path d="M35 45 Q50 50 65 45" stroke="white" stroke-width="2" fill="none"/>` },
+            { id: 'apple', name: 'Fibre', class: 'Fibre', value: 15, color: '#f43f5e',
+              svg: `<circle cx="50" cy="55" r="30" fill="#f43f5e"/><path d="M50 25 L50 15" stroke="#451a03" stroke-width="3"/><path d="M50 20 Q65 10 60 25" fill="#22c55e"/>` }
+        ];
+
+        const MISSIONS = [
+            { text: "CRITICAL: Bot needs high GLUCOSE for a power sprint!", targetClass: 'Carbohydrate', hint: "Identify the Carbs!" },
+            { text: "SYSTEM REPAIR: Nanobots require AMINO ACIDS to fix the chassis.", targetClass: 'Protein', hint: "Need Proteins!" },
+            { text: "THERMAL OVERLOAD: Coolant levels low. Inject H2O immediately.", targetClass: 'Water', hint: "Find the Water!" },
+            { text: "OS ERROR: Protection sensors failing. Shielding nutrients required.", targetClass: 'Vitamins', hint: "Vitamins found in greens!" },
+            { text: "MECHANICAL FRICTION: Gears need smooth waste processing.", targetClass: 'Fibre', hint: "Fibre keeps things moving!" },
+            { text: "LONG TERM STORAGE: Compiling high-density energy reserves.", targetClass: 'Fat', hint: "Fats for storage!" }
+        ];
+
+        // --- STATE ---
+        let score = 0;
+        let health = 100;
+        let energy = 100;
+        let currentMission = null;
+        let stats = { carb: 0, protein: 0, fat: 0, other: 0 };
+        let gameActive = false;
+
+        // --- AUDIO ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSfx(freq, type = 'sine', duration = 0.1, vol = 0.1) {
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            g.gain.setValueAtTime(vol, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+
+        // --- ENGINE ---
+        function updateUI() {
+            document.getElementById('energy-bar').style.width = energy + '%';
+            document.getElementById('health-bar').style.width = health + '%';
+            document.getElementById('score-display').innerText = score.toLocaleString();
+            
+            // Numbers
+            document.getElementById('stat-carb').innerText = stats.carb + 'g';
+            document.getElementById('stat-protein').innerText = stats.protein + 'g';
+            document.getElementById('stat-fat').innerText = stats.fat + 'g';
+            document.getElementById('stat-other').innerText = stats.other + '%';
+
+            // Mini Bars
+            document.getElementById('bar-carb').style.width = Math.min(100, stats.carb) + '%';
+            document.getElementById('bar-protein').style.width = Math.min(100, stats.protein) + '%';
+            document.getElementById('bar-fat').style.width = Math.min(100, stats.fat) + '%';
+            document.getElementById('bar-other').style.width = Math.min(100, stats.other) + '%';
+        }
+
+        function spawnFX(x, y, color) {
+            for(let i=0; i<8; i++) {
+                const p = document.createElement('div');
+                p.className = 'floating-particle';
+                p.style.left = x + 'px';
+                p.style.top = y + 'px';
+                p.style.width = Math.random()*15 + 5 + 'px';
+                p.style.height = p.style.width;
+                p.style.borderRadius = '50%';
+                p.style.backgroundColor = color;
+                p.style.boxShadow = `0 0 10px ${color}`;
+                document.body.appendChild(p);
+                setTimeout(() => p.remove(), 800);
+            }
+        }
+
+        function nextMission() {
+            if (MISSIONS.length === 0) return endGame();
+            const idx = Math.floor(Math.random() * MISSIONS.length);
+            currentMission = MISSIONS.splice(idx, 1)[0];
+            
+            const box = document.getElementById('mission-box');
+            box.style.transform = 'scale(0.8)';
+            setTimeout(() => {
+                document.getElementById('mission-text').innerText = currentMission.text;
+                box.style.transform = 'scale(1)';
+                playSfx(523.25, 'triangle', 0.2, 0.05); // C5
+            }, 150);
+        }
+
+        function createFoodShelf() {
+            const shelf = document.getElementById('food-shelf');
+            shelf.innerHTML = '';
+            FOODS.forEach(food => {
+                const card = document.createElement('div');
+                card.className = 'food-card p-4 rounded-3xl flex flex-col items-center w-28 flex-shrink-0 cursor-pointer';
+                card.draggable = true;
+                card.innerHTML = `
+                    <svg viewBox="0 0 100 100" class="w-16 h-16 mb-2 drop-shadow-sm">${food.svg}</svg>
+                    <span class="text-[11px] font-extrabold text-slate-500 uppercase tracking-tighter">${food.name}</span>
+                `;
+                
+                card.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('foodId', food.id);
+                    card.style.scale = '0.9';
+                });
+                card.addEventListener('dragend', () => card.style.scale = '1');
+                card.addEventListener('click', () => processInput(food));
+                shelf.appendChild(card);
+            });
+        }
+
+        function processInput(food) {
+            if (!gameActive) return;
+            const rect = document.getElementById('bot-target').getBoundingClientRect();
+            spawnFX(rect.left + rect.width/2, rect.top + rect.height/2, food.color);
+
+            if (food.class === currentMission.targetClass) {
+                score += 150;
+                energy = Math.min(100, energy + 15);
+                stats[getStatKey(food.class)] += food.value;
+                playSfx(880, 'sine', 0.1); 
+                playSfx(1108, 'sine', 0.15); // Arpeggio
+                
+                document.getElementById('mission-box').classList.add('border-teal-400', 'bg-teal-50');
+                setTimeout(() => {
+                    document.getElementById('mission-box').classList.remove('border-teal-400', 'bg-teal-50');
+                    nextMission();
+                }, 400);
+            } else {
+                health -= 20;
+                playSfx(110, 'sawtooth', 0.4, 0.15);
+                document.getElementById('mission-box').classList.add('border-rose-400', 'bg-rose-50');
+                document.getElementById('mission-text').innerText = "INCOMPATIBLE: " + currentMission.hint;
+                
+                const bot = document.getElementById('bot-svg');
+                bot.style.animation = 'none';
+                bot.offsetHeight;
+                bot.style.animation = 'bounce 0.1s 5 linear';
+                setTimeout(() => {
+                    bot.style.animation = 'bounce 3s infinite ease-in-out';
+                    document.getElementById('mission-box').classList.remove('border-rose-400', 'bg-rose-50');
+                }, 500);
+
+                if (health <= 0) endGame();
+            }
+            updateUI();
+        }
+
+        function getStatKey(c) {
+            if (c === 'Carbohydrate') return 'carb';
+            if (c === 'Protein') return 'protein';
+            if (c === 'Fat') return 'fat';
+            return 'other';
+        }
+
+        function endGame() {
+            gameActive = false;
+            document.getElementById('result-overlay').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score.toLocaleString();
+            
+            let rank = "Lab Assistant";
+            if (score > 400) rank = "Systems Specialist";
+            if (score >= 700) rank = "Master of Metabolism";
+            document.getElementById('rank-text').innerText = rank;
+        }
+
+        // --- INIT ---
+        document.getElementById('start-btn').addEventListener('click', () => {
+            audioCtx.resume();
+            document.getElementById('overlay').style.transform = 'translateY(-100%)';
+            setTimeout(() => {
+                document.getElementById('overlay').classList.add('hidden');
+                gameActive = true;
+                nextMission();
+            }, 700);
+        });
+
+        const dropZone = document.getElementById('bot-drop-zone');
+        dropZone.addEventListener('dragover', (e) => e.preventDefault());
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const foodId = e.dataTransfer.getData('foodId');
+            const food = FOODS.find(f => f.id === foodId);
+            if (food) processInput(food);
+        });
+
+        createFoodShelf();
+        updateUI();
+
+    </script>
+</body>
+</html>

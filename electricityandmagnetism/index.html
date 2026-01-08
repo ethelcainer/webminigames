@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shock & Pull: Comic Science Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --comic-yellow: #FFDE00;
+            --comic-red: #FF4B2B;
+            --comic-blue: #00ADEE;
+            --comic-border: #000000;
+        }
+
+        body {
+            background: radial-gradient(circle, #333 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-color: #f0f0f0;
+            font-family: 'Comic Neue', 'Comic Sans MS', cursive;
+            overflow: hidden; 
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .comic-font { font-family: 'Bangers', system-ui; letter-spacing: 1px; }
+        .small-text { font-family: 'Comic Neue', 'Comic Sans MS', cursive; font-weight: 700; }
+
+        .comic-panel {
+            background: white;
+            border: 4px solid var(--comic-border);
+            box-shadow: 8px 8px 0px var(--comic-border);
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .comic-button {
+            background: var(--comic-yellow);
+            border: 3px solid var(--comic-border);
+            box-shadow: 4px 4px 0px var(--comic-border);
+            transition: all 0.1s;
+            cursor: pointer;
+            font-family: 'Bangers', cursive;
+        }
+
+        .comic-button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px var(--comic-border);
+        }
+
+        .wire {
+            stroke: #333;
+            stroke-width: 6;
+            fill: none;
+            stroke-linecap: round;
+        }
+
+        .magnetic-field {
+            stroke: var(--comic-blue);
+            stroke-dasharray: 10, 5;
+            opacity: 0.3;
+            fill: none;
+            transition: all 0.3s ease;
+        }
+
+        @keyframes flow {
+            from { stroke-dashoffset: 100; }
+            to { stroke-dashoffset: 0; }
+        }
+
+        .flowing {
+            animation: flow 2s linear infinite;
+            stroke-dasharray: 15, 10;
+            stroke: #FFDE00;
+        }
+
+        .speech-bubble {
+            background: white;
+            border: 3px solid black;
+            border-radius: 20px;
+            padding: 10px 20px;
+            position: relative;
+            filter: drop-shadow(4px 4px 0 rgba(0,0,0,0.1));
+        }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -15px;
+            left: 20px;
+            border-width: 15px 15px 0 0;
+            border-style: solid;
+            border-color: white transparent transparent transparent;
+        }
+
+        .spark { position: absolute; pointer-events: none; }
+        
+        input[type="range"] {
+            cursor: pointer;
+        }
+
+        #intro-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hidden { display: none !important; }
+
+        .heat-bar {
+            height: 10px;
+            background: #eee;
+            border: 2px solid #000;
+            width: 100%;
+            overflow: hidden;
+        }
+        .heat-fill {
+            height: 100%;
+            background: linear-gradient(to right, #fbbf24, #ef4444);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .badge-pop {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            z-index: 100;
+            background: var(--comic-yellow);
+            border: 5px solid black;
+            padding: 20px;
+            box-shadow: 10px 10px 0 black;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            to { transform: translate(-50%, -50%) scale(1.2) rotate(-5deg); }
+        }
+
+        #target-zone {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 100px; 
+            border: 3px dashed var(--comic-blue);
+            background: rgba(0, 173, 238, 0.1);
+            pointer-events: none;
+            display: none;
+        }
+    </style>
+</head>
+<body class="p-2">
+
+    <!-- Intro Screen Overlay -->
+    <div id="intro-screen">
+        <div class="comic-panel p-8 max-w-2xl bg-white text-center -rotate-1">
+            <div class="inline-block comic-panel p-6 bg-red-500 text-white mb-6 -rotate-2">
+                <h1 class="text-5xl md:text-7xl comic-font uppercase italic">Shock & Pull!</h1>
+                <p class="comic-font text-xl tracking-widest mt-2">The Electro-Magnet Adventure</p>
+            </div>
+
+            <div class="text-left space-y-4 mb-8">
+                <h2 class="comic-font text-3xl border-b-4 border-black inline-block">LAB GUIDE:</h2>
+                <ul class="list-none space-y-2 small-text text-lg">
+                    <li>⚡ <span class="text-red-600">POWER CELL:</span> Higher voltage = more current = stronger field!</li>
+                    <li>🌀 <span class="text-orange-600">COIL WRAPS:</span> More turns increase the magnetic flux density.</li>
+                    <li>🌡️ <span class="text-red-800">HEAT GAUGE:</span> Careful! Max power overheats the circuit.</li>
+                    <li>🏗️ <span class="text-black font-bold">MISSION:</span> Complete 4 scientific challenges to become a Master!</li>
+                </ul>
+            </div>
+
+            <button id="start-btn" class="comic-button px-12 py-4 text-4xl hover:scale-105 transition-transform">
+                START MISSION!
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Game UI -->
+    <main id="game-ui" class="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-3 gap-4 hidden lg:h-[600px]">
+        
+        <!-- Left: Controls Panel -->
+        <div class="lg:col-span-1 flex flex-col gap-4 h-full">
+            <div class="comic-panel p-4 bg-blue-50">
+                <div class="flex justify-between items-center border-b-4 border-black pb-1 mb-2">
+                    <h2 class="comic-font text-3xl">Current Mission</h2>
+                    <div id="mission-count" class="comic-font text-xl bg-black text-white px-2">1/4</div>
+                </div>
+                
+                <div id="mission-description" class="speech-bubble mb-4 small-text text-sm min-h-[80px]">
+                    "Rookie! Prove the magnet works. <strong>Collect all 15 paperclips</strong> using any setting!"
+                </div>
+                
+                <div class="space-y-4">
+                    <!-- Heat Gauge -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs uppercase font-bold">
+                            <span>Circuit Temp</span>
+                            <span id="heat-status">Stable</span>
+                        </div>
+                        <div class="heat-bar"><div id="heat-fill" class="heat-fill"></div></div>
+                    </div>
+
+                    <!-- Voltage Control -->
+                    <div class="p-3 bg-white border-2 border-black rounded shadow-sm">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="small-text uppercase text-xs">Power Cell (Volts)</span>
+                            <span id="volt-val" class="comic-font text-xl text-red-500">50</span>
+                        </div>
+                        <input type="range" id="voltage-slider" min="0" max="100" value="50" class="w-full h-4 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-500">
+                    </div>
+
+                    <!-- Wraps Control -->
+                    <div class="p-3 bg-white border-2 border-black rounded shadow-sm">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="small-text uppercase text-xs">Coil Wraps (Turns)</span>
+                            <span id="wrap-val" class="comic-font text-xl text-orange-600">15</span>
+                        </div>
+                        <input type="range" id="wrap-slider" min="5" max="30" value="15" class="w-full h-4 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500">
+                    </div>
+
+                    <!-- Toggles -->
+                    <div class="flex">
+                        <button id="switch-btn" class="comic-button w-full py-2 text-2xl uppercase">OFF</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Extended DID YOU KNOW box -->
+            <div class="comic-panel p-4 bg-yellow-100 italic small-text flex-grow flex flex-col justify-center">
+                <p class="font-bold underline mb-2">DID YOU KNOW?</p>
+                <p class="text-sm leading-relaxed" id="science-fact">An electromagnet is a temporary magnet. It loses its magnetism when the current is switched off!</p>
+            </div>
+        </div>
+
+        <!-- Right: Interactive Canvas -->
+        <div class="lg:col-span-2 h-full">
+            <div class="comic-panel h-full overflow-hidden bg-white relative" id="lab-area">
+                <div id="target-zone" style="top: 300px;"></div>
+                
+                <div class="absolute top-4 left-4 z-10 space-y-2">
+                    <div class="comic-font text-2xl bg-black text-white px-4 py-1 -rotate-2 inline-block">
+                        FORCE: <span id="strength-display">0</span>%
+                    </div>
+                </div>
+
+                <svg id="circuit-svg" viewBox="0 0 800 600" class="w-full h-full">
+                    <defs>
+                        <pattern id="halftone" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+                            <circle cx="2" cy="2" r="1.5" fill="#f0f0f0" />
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#halftone)" />
+
+                    <g id="magnetic-lines"></g>
+
+                    <g id="electromagnet" transform="translate(400, 250)">
+                        <path d="M-180,-25 L180,-25 L210,0 L180,25 L-180,25 Z" fill="#666" stroke="#000" stroke-width="4"/>
+                        <text id="pole-left" x="-160" y="7" text-anchor="middle" class="comic-font" font-size="24" fill="white">S</text>
+                        <text id="pole-right" x="160" y="7" text-anchor="middle" class="comic-font" font-size="24" fill="white">N</text>
+                        <g id="wire-wraps"></g>
+                    </g>
+
+                    <path id="main-wire" class="wire" d="M100,500 L100,550 L700,550 L700,500" />
+                    <path id="flow-indicator" class="wire" d="M100,500 L100,550 L700,550 L700,500" />
+
+                    <g transform="translate(50, 450)">
+                        <rect width="120" height="70" fill="var(--comic-red)" stroke="black" stroke-width="4" rx="5"/>
+                        <rect x="120" y="20" width="15" height="30" fill="#333" stroke="black" stroke-width="2"/>
+                        <text x="60" y="45" text-anchor="middle" fill="white" font-family="Bangers" font-size="28">POWER!</text>
+                    </g>
+
+                    <g id="objects-layer"></g>
+
+                    <g id="anvil" transform="translate(400, 520)">
+                        <path d="M-40,0 L40,0 L30,40 L-30,40 Z" fill="#222" stroke="black" stroke-width="3"/>
+                        <path d="M-60,-20 L60,-20 L40,0 L-40,0 Z" fill="#444" stroke="black" stroke-width="3"/>
+                        <text y="25" text-anchor="middle" fill="white" font-family="Bangers" font-size="14">SUPER ANVIL</text>
+                    </g>
+                </svg>
+
+                <div id="effect-container"></div>
+                <div id="badge-container"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const state = {
+            powerOn: false,
+            voltage: 50,
+            wraps: 15,
+            strength: 0,
+            objects: [],
+            gameStarted: false,
+            heat: 0,
+            overloaded: false,
+            missionIndex: 0,
+            missionTimer: 0,
+            anvilY: 520, 
+            lastFrameTime: performance.now(),
+            missions: [
+                { 
+                    id: 1, 
+                    title: "CLEAN UP!", 
+                    text: "The lab is a mess! <strong>Collect all 15 paperclips</strong> by pulling them to the magnet.",
+                    check: () => state.objects.every(o => o.captured),
+                    fact: "Iron, steel, nickel, and cobalt are magnetic materials that can be attracted by electromagnets."
+                },
+                { 
+                    id: 2, 
+                    title: "PRECISION LIFT", 
+                    text: "Lift the Super Anvil into the <strong>blue target zone</strong> and hold it for 2 seconds. Don't let it touch the magnet!",
+                    check: (dt) => {
+                        if (state.anvilY > 300 && state.anvilY < 400) {
+                            state.missionTimer += dt;
+                            return state.missionTimer > 2;
+                        }
+                        state.missionTimer = 0;
+                        return false;
+                    },
+                    fact: "Increasing the number of wire turns (N) increases the magnetic field strength without needing more electricity!"
+                },
+                { 
+                    id: 3, 
+                    title: "POWER SAVER", 
+                    text: "Lift the Anvil to the magnet and hold for 2 seconds using <strong>less than 60% Power</strong>. Hint: Maximize your Coil Wraps!",
+                    check: (dt) => {
+                        if (state.anvilY < 310 && state.voltage < 60) {
+                            state.missionTimer += dt;
+                            return state.missionTimer > 2;
+                        }
+                        state.missionTimer = 0;
+                        return false;
+                    },
+                    fact: "Magnetic strength is directly proportional to current (I). Lower voltage means lower current, which saves energy!"
+                },
+                {
+                    id: 4, 
+                    title: "THERMAL CONTROL", 
+                    text: "Hold the Anvil at the magnet for 5 seconds with <strong>Force above 85%</strong>. Watch that Heat Gauge—don't overload!",
+                    check: (dt) => {
+                        if (state.anvilY < 320 && state.strength >= 85 && !state.overloaded && state.powerOn) {
+                            state.missionTimer += dt;
+                            return state.missionTimer > 5;
+                        }
+                        state.missionTimer = 0;
+                        return false;
+                    },
+                    fact: "Electrical resistance converts some energy into heat. High voltage creates high heat, which can damage components!"
+                }
+            ]
+        };
+
+        const elements = {
+            switchBtn: document.getElementById('switch-btn'),
+            voltageSlider: document.getElementById('voltage-slider'),
+            wrapSlider: document.getElementById('wrap-slider'),
+            voltVal: document.getElementById('volt-val'),
+            wrapVal: document.getElementById('wrap-val'),
+            flowIndicator: document.getElementById('flow-indicator'),
+            magneticLines: document.getElementById('magnetic-lines'),
+            wireWraps: document.getElementById('wire-wraps'),
+            strengthDisplay: document.getElementById('strength-display'),
+            anvil: document.getElementById('anvil'),
+            instructionText: document.getElementById('mission-description'),
+            introScreen: document.getElementById('intro-screen'),
+            startBtn: document.getElementById('start-btn'),
+            gameUi: document.getElementById('game-ui'),
+            heatFill: document.getElementById('heat-fill'),
+            heatStatus: document.getElementById('heat-status'),
+            targetZone: document.getElementById('target-zone'),
+            missionCount: document.getElementById('mission-count'),
+            scienceFact: document.getElementById('science-fact')
+        };
+
+        function calculateStrength() {
+            if (!state.powerOn || state.overloaded) return 0;
+            return (Number(state.voltage) / 100) * (Number(state.wraps) / 30);
+        }
+
+        function initWraps() {
+            elements.wireWraps.innerHTML = '';
+            for (let i = 0; i < Number(state.wraps); i++) {
+                const x = -160 + (i * (320 / (Number(state.wraps) - 1 || 1)));
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", x - 5);
+                rect.setAttribute("y", "-30");
+                rect.setAttribute("width", "10");
+                rect.setAttribute("height", "60");
+                rect.setAttribute("fill", "#cd7f32");
+                rect.setAttribute("stroke", "black");
+                rect.setAttribute("stroke-width", "2");
+                rect.setAttribute("rx", "3");
+                elements.wireWraps.appendChild(rect);
+            }
+        }
+
+        function initObjects() {
+            const container = document.getElementById('objects-layer');
+            container.innerHTML = '';
+            state.objects = [];
+            for (let i = 0; i < 15; i++) {
+                const x = 200 + Math.random() * 400;
+                const y = 450 + Math.random() * 100;
+                const rot = Math.random() * 360;
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.setAttribute("transform", `translate(${x}, ${y}) rotate(${rot})`);
+                g.innerHTML = `<path d="M-10,-5 L10,-5 C12,-5 12,5 10,5 L-10,5 C-12,5 -12,-15 0,-15 L10,-15" fill="none" stroke="#666" stroke-width="2" />`;
+                container.appendChild(g);
+                state.objects.push({ el: g, x, y, rot, captured: false });
+            }
+        }
+
+        function updateMagneticField() {
+            elements.magneticLines.innerHTML = '';
+            const currentStrength = calculateStrength();
+            state.strength = Math.round(currentStrength * 100);
+            elements.strengthDisplay.innerText = state.strength;
+            if (currentStrength <= 0) return;
+            
+            const count = Math.floor(currentStrength * 12) + 4; 
+            for (let i = 1; i <= count; i++) {
+                const rx = 220 + (i * 60); 
+                const ry = 80 + (i * 35);  
+                const ellipse = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+                ellipse.setAttribute("cx", "400");
+                ellipse.setAttribute("cy", "250");
+                ellipse.setAttribute("rx", rx);
+                ellipse.setAttribute("ry", ry);
+                ellipse.setAttribute("class", "magnetic-field");
+                ellipse.style.strokeWidth = 2 + (currentStrength * 8);
+                ellipse.style.opacity = currentStrength * 0.5;
+                ellipse.style.strokeDasharray = "10, 10";
+                elements.magneticLines.appendChild(ellipse);
+            }
+        }
+
+        function triggerBadge(text) {
+            const badge = document.createElement('div');
+            badge.className = 'badge-pop comic-font text-5xl';
+            badge.innerHTML = text;
+            document.getElementById('badge-container').appendChild(badge);
+            playTone(880); playTone(1200);
+            setTimeout(() => badge.remove(), 2500);
+        }
+
+        function nextMission() {
+            state.missionIndex++;
+            state.missionTimer = 0; 
+            if (state.missionIndex < state.missions.length) {
+                const m = state.missions[state.missionIndex];
+                elements.instructionText.innerHTML = `<strong>MISSION ${m.id}: ${m.title}</strong><br>${m.text}`;
+                elements.missionCount.innerText = `${m.id}/4`;
+                elements.scienceFact.innerText = m.fact;
+                elements.targetZone.style.display = m.id === 2 ? 'block' : 'none';
+                triggerBadge("MISSION CLEAR!");
+            } else {
+                triggerBadge("MASTER OF MAGNETISM!");
+                elements.instructionText.innerHTML = "<strong>UNBELIEVABLE!</strong> You completed every challenge. You are now a Scientific Super-Hero!";
+                elements.missionCount.innerText = "🏆";
+            }
+        }
+
+        elements.startBtn.addEventListener('click', () => {
+            elements.introScreen.classList.add('hidden');
+            elements.gameUi.classList.remove('hidden');
+            state.gameStarted = true;
+            state.lastFrameTime = performance.now();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            initWraps();
+            initObjects();
+            requestAnimationFrame(physicsLoop);
+        });
+
+        elements.switchBtn.addEventListener('click', () => {
+            if (state.overloaded) return;
+            state.powerOn = !state.powerOn;
+            elements.switchBtn.innerText = state.powerOn ? "ON" : "OFF";
+            elements.switchBtn.style.background = state.powerOn ? "var(--comic-blue)" : "var(--comic-yellow)";
+            elements.flowIndicator.classList.toggle('flowing', state.powerOn);
+            if (state.powerOn) { createSparkEffect(110, 500); playTone(440); }
+            updateMagneticField();
+        });
+
+        elements.voltageSlider.addEventListener('input', (e) => {
+            state.voltage = Number(e.target.value);
+            elements.voltVal.innerText = state.voltage;
+            updateMagneticField();
+        });
+
+        elements.wrapSlider.addEventListener('input', (e) => {
+            state.wraps = Number(e.target.value);
+            elements.wrapVal.innerText = state.wraps;
+            initWraps();
+            updateMagneticField();
+        });
+
+        function physicsLoop(timestamp) {
+            if (!state.gameStarted) return;
+
+            const dt = (timestamp - state.lastFrameTime) / 1000;
+            state.lastFrameTime = timestamp;
+
+            const currentStrength = calculateStrength();
+            const magnetX = 400, magnetY = 250;
+
+            // Heat Mechanic - Tuned down gain (7.5) and adjusted cooldown
+            if (state.powerOn && Number(state.voltage) > 20) {
+                state.heat += (Number(state.voltage) / 100) * 7.5 * dt; 
+            } else {
+                state.heat = Math.max(0, state.heat - 35 * dt); 
+            }
+            elements.heatFill.style.width = Math.min(100, state.heat) + '%';
+            if (state.heat >= 100 && !state.overloaded) {
+                state.overloaded = true;
+                state.powerOn = false;
+                elements.switchBtn.innerText = "FUSED!";
+                elements.switchBtn.style.background = "#333";
+                elements.heatStatus.innerText = "OVERLOAD!";
+                createSparkEffect(110, 500);
+                setTimeout(() => {
+                    state.overloaded = false;
+                    state.heat = 0;
+                    elements.heatStatus.innerText = "STABLE";
+                    elements.switchBtn.innerText = "OFF";
+                    elements.switchBtn.style.background = "var(--comic-yellow)";
+                }, 3000);
+            }
+
+            // Anvil Physics
+            let shakeX = 0;
+            let shakeY = 0;
+
+            if (state.powerOn && currentStrength > 0) {
+                const distToMagnet = Math.max(10, state.anvilY - magnetY);
+                const pullForce = Math.min(12, (currentStrength * 1800) / distToMagnet);
+                const gravity = 1.9;
+                
+                state.anvilY = state.anvilY - pullForce + gravity;
+                state.anvilY = Math.max(280, Math.min(520, state.anvilY));
+                
+                if (currentStrength > 0.85) {
+                    shakeX = (Math.random() - 0.5) * 4;
+                    shakeY = (Math.random() - 0.5) * 4;
+                }
+            } else {
+                if (state.anvilY < 520) state.anvilY = Math.min(520, state.anvilY + 6);
+            }
+            
+            const safeY = isFinite(state.anvilY) ? state.anvilY : 520;
+            elements.anvil.setAttribute("transform", `translate(${400 + shakeX}, ${safeY + shakeY})`);
+
+            // Objects Physics (Paperclips)
+            state.objects.forEach(obj => {
+                const dx = magnetX - obj.x, dy = magnetY - obj.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (state.powerOn && currentStrength > 0.05) {
+                    const range = 350 + (500 * currentStrength); 
+                    if (dist < range) {
+                        const pullFactor = Math.pow(1 - dist/range, 1.1) * 25 * currentStrength;
+                        obj.x += (dx / dist) * pullFactor;
+                        obj.y += (dy / dist) * pullFactor;
+                        obj.rot += pullFactor * 2;
+
+                        if (dist < 40) {
+                            obj.captured = true;
+                            obj.x = magnetX + (Math.random() * 240 - 120);
+                            obj.y = magnetY + (Math.random() * 36 - 18);
+                        }
+                    }
+                } else if (!state.powerOn || currentStrength < 0.05) {
+                    if (obj.y < 520) {
+                        obj.y += 4;
+                        obj.rot += 1.5;
+                    }
+                }
+                obj.el.setAttribute("transform", `translate(${obj.x}, ${obj.y}) rotate(${obj.rot})`);
+            });
+
+            // Check Mission Progress
+            if (state.missionIndex < state.missions.length) {
+                if (state.missions[state.missionIndex].check(dt)) {
+                    nextMission();
+                }
+            }
+
+            requestAnimationFrame(physicsLoop);
+        }
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(f) {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.connect(g); g.connect(audioCtx.destination);
+            o.frequency.value = f;
+            g.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            o.start(); o.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function createSparkEffect(x, y) {
+            for (let i = 0; i < 6; i++) {
+                const spark = document.createElement('div');
+                spark.className = 'spark';
+                spark.style.left = x + 'px'; spark.style.top = y + 'px';
+                spark.style.width = '10px'; spark.style.height = '10px';
+                spark.style.background = 'white'; spark.style.border = '2px solid orange';
+                spark.style.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+                document.getElementById('effect-container').appendChild(spark);
+                const angle = Math.random() * Math.PI * 2, dist = 50 + Math.random() * 50;
+                spark.animate([
+                    { transform: 'translate(0,0) scale(1)', opacity: 1 },
+                    { transform: `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px) scale(0)`, opacity: 0 }
+                ], { duration: 500 }).onfinish = () => spark.remove();
+            }
+        }
+    </script>
+</body>
+</html>

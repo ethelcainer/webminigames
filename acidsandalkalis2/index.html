@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab-o-Matic: The pH Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: #f0f9ff;
+            background-image: 
+                linear-gradient(rgba(186, 230, 253, 0.4) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(186, 230, 253, 0.4) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: moveGrid 20s linear infinite;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        @keyframes moveGrid {
+            from { background-position: 0 0; }
+            to { background-position: 50px 50px; }
+        }
+
+        .font-game { font-family: 'Fredoka One', cursive; }
+        
+        .beaker-liquid {
+            transition: height 0.5s ease, fill 0.8s ease;
+        }
+
+        .bubble {
+            position: absolute;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: floatUp var(--duration) linear infinite;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 0; }
+            20% { opacity: 0.6; }
+            80% { opacity: 0.6; }
+            100% { transform: translateY(-100px) scale(1.2); opacity: 0; }
+        }
+
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .drop-zone {
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .drop-zone.active {
+            transform: scale(1.05);
+            border-color: #3b82f6;
+        }
+
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body class="h-screen flex items-center justify-center p-4">
+
+    <!-- Game Container -->
+    <div id="game-container" class="relative w-full max-w-4xl h-[650px] bg-white rounded-[40px] shadow-2xl border-8 border-sky-200 overflow-hidden flex flex-col">
+        
+        <!-- UI Header -->
+        <div class="p-6 flex justify-between items-center bg-white/80 backdrop-blur-md z-10 border-b border-sky-100">
+            <div>
+                <h1 class="text-3xl font-game text-sky-600 tracking-wide">LAB-O-MATIC</h1>
+                <p class="text-sky-400 font-semibold uppercase text-xs tracking-widest mt-1" id="phase-title">Phase 1: Sorting Lab</p>
+            </div>
+            <div class="flex flex-col items-end gap-1">
+                <div class="bg-sky-100 px-4 py-1 rounded-2xl border-2 border-sky-200">
+                    <span class="text-sky-500 font-bold text-sm">SCORE: </span>
+                    <span id="score-val" class="text-sky-700 font-game text-lg">0</span>
+                </div>
+                <div id="mission-counter" class="hidden text-sky-500 font-game text-xs uppercase tracking-wider">
+                    MISSION: <span id="mission-num">1</span> / 3
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div id="workspace" class="relative flex-grow flex items-center justify-center overflow-hidden">
+            
+            <!-- Phase 1: Sorting Content -->
+            <div id="sorting-phase" class="w-full h-full flex flex-col items-center justify-around p-8">
+                <div class="flex gap-16 items-end">
+                    <!-- Acid Tank -->
+                    <div id="tank-acid" class="drop-zone w-40 h-56 border-4 border-red-200 rounded-b-[40px] relative flex flex-col items-center justify-end bg-red-50/30">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+                            <svg viewBox="0 0 100 100" class="w-24 h-24 fill-red-500"><path d="M50 10L15 80h70L50 10zm0 40c2 0 4 2 4 4s-2 4-4 4-4-2-4-4 2-4 4-4zm-4 12h8v12h-8V62z"/></svg>
+                        </div>
+                        <div class="beaker-liquid w-full bg-red-400/60 rounded-b-[36px] relative" style="height: 10%;">
+                             <div class="absolute -top-2 left-0 w-full h-4 bg-red-400/80 rounded-full blur-[1px]"></div>
+                        </div>
+                        <span class="absolute -bottom-10 font-game text-red-500 uppercase text-base">Acidic</span>
+                    </div>
+
+                    <!-- Object to drag -->
+                    <div id="draggable-item" class="w-32 h-32 cursor-grab active:cursor-grabbing flex items-center justify-center relative z-20 group">
+                        <div id="item-graphic" class="transition-transform group-hover:scale-110">
+                            <!-- SVG Content will be injected here -->
+                        </div>
+                        <div id="item-label" class="absolute -bottom-6 bg-white px-4 py-1 rounded-full shadow-lg text-sm font-bold text-sky-800 border-2 border-sky-100 whitespace-nowrap">
+                            Loading...
+                        </div>
+                    </div>
+
+                    <!-- Alkali Tank -->
+                    <div id="tank-alkali" class="drop-zone w-40 h-56 border-4 border-blue-200 rounded-b-[40px] relative flex flex-col items-center justify-end bg-blue-50/30">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+                            <svg viewBox="0 0 100 100" class="w-24 h-24 fill-blue-500"><circle cx="50" cy="50" r="40"/><path d="M30 50h40M50 30v40" stroke="white" stroke-width="8"/></svg>
+                        </div>
+                        <div class="beaker-liquid w-full bg-blue-400/60 rounded-b-[36px] relative" style="height: 10%;">
+                            <div class="absolute -top-2 left-0 w-full h-4 bg-blue-400/80 rounded-full blur-[1px]"></div>
+                        </div>
+                        <span class="absolute -bottom-10 font-game text-blue-500 uppercase text-base">Alkaline</span>
+                    </div>
+                </div>
+                <p class="text-sky-400 font-bold text-lg mt-4">Drag the substance to the correct tank!</p>
+            </div>
+
+            <!-- Phase 2: Neutralization Content -->
+            <div id="neutralization-phase" class="hidden w-full h-full flex flex-col items-center justify-center p-8">
+                <div class="relative flex items-center gap-16 mb-8">
+                    <div class="flex flex-col items-center gap-4">
+                        <button id="btn-acid" class="group relative w-20 h-28 bg-red-100 border-4 border-red-300 rounded-t-full rounded-b-xl flex items-center justify-center hover:bg-red-200 transition-all hover:scale-105 active:scale-95 shadow-md">
+                            <div class="w-4 h-8 bg-red-400 rounded-full group-active:translate-y-2 transition-transform"></div>
+                            <span class="absolute -top-8 text-red-500 font-game text-[10px] uppercase">Add Acid</span>
+                        </button>
+                    </div>
+                    
+                    <div class="relative pt-12">
+                        <!-- PH INDICATOR - Smaller and Better Spaced -->
+                        <div id="ph-indicator" class="absolute top-0 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full font-game text-lg text-white shadow-lg bg-red-500 transition-all scale-100 border-2 border-white/30 z-20">
+                            pH <span id="ph-value">3.0</span>
+                        </div>
+                        
+                        <div id="main-beaker" class="w-48 h-64 border-x-4 border-b-4 border-sky-200 rounded-b-[50px] relative flex flex-col justify-end bg-white/50 overflow-hidden shadow-inner mt-8">
+                            <div id="reaction-liquid" class="w-full transition-all duration-700 ease-out relative" style="height: 40%; background-color: #ef4444;">
+                                <div class="absolute top-0 left-0 w-full h-4 bg-black/5 blur-[2px]"></div>
+                            </div>
+                        </div>
+
+                        <div id="neutral-badge" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 scale-50 transition-all duration-500 pointer-events-none z-30">
+                            <div class="bg-green-500 text-white font-game p-6 rounded-full shadow-2xl border-4 border-white text-center whitespace-nowrap text-xl">
+                                PERFECTLY<br>NEUTRAL!
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-4">
+                        <button id="btn-alkali" class="group relative w-20 h-28 bg-blue-100 border-4 border-blue-300 rounded-t-full rounded-b-xl flex items-center justify-center hover:bg-blue-200 transition-all hover:scale-105 active:scale-95 shadow-md">
+                            <div class="w-4 h-8 bg-blue-400 rounded-full group-active:translate-y-2 transition-transform"></div>
+                            <span class="absolute -top-8 text-blue-500 font-game text-[10px] uppercase">Add Alkali</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="text-center w-full max-w-sm">
+                    <p class="text-sky-600 font-game text-2xl mb-2" id="goal-text">Mystery solution detected...</p>
+                    <div class="w-full bg-sky-100 h-3 rounded-full overflow-hidden border-2 border-sky-200 shadow-inner">
+                        <div id="progress-bar" class="h-full bg-green-400 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback Overlay -->
+        <div id="feedback" class="absolute inset-0 pointer-events-none flex items-center justify-center z-50"></div>
+
+        <!-- Result Popup (In-Game Modal) -->
+        <div id="result-modal" class="hidden absolute inset-0 bg-sky-900/60 backdrop-blur-md z-50 flex items-center justify-center p-8">
+            <div class="bg-white rounded-[40px] border-8 border-white shadow-2xl max-sm w-full p-8 text-center">
+                <div class="mb-4 flex justify-center">
+                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                </div>
+                <h3 class="text-3xl font-game text-sky-600 mb-2">LAB COMPLETE!</h3>
+                <p class="text-sky-900 font-bold text-lg mb-4">Final Score: <span id="final-score" class="text-sky-500 text-2xl">0</span></p>
+                <p class="text-sky-400 mb-6 font-semibold italic text-sm">You have mastered the art of pH balance!</p>
+                <button onclick="location.reload()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-game py-3 rounded-full text-xl transition-all shadow-xl active:scale-95">
+                    RESTART LAB
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="overlay" class="fixed inset-0 bg-sky-600/90 backdrop-blur-sm z-[100] flex items-center justify-center text-center p-6">
+        <div class="bg-white p-10 rounded-[50px] shadow-2xl max-w-md border-8 border-sky-400 floating">
+            <div class="mb-6 flex justify-center">
+                <svg width="100" height="100" viewBox="0 0 100 100">
+                    <path d="M30 20 L40 20 L40 80 L20 80 Q10 80 10 70 L10 30 Q10 20 20 20 Z" fill="#60a5fa" />
+                    <circle cx="65" cy="50" r="30" fill="#f87171" opacity="0.8"/>
+                    <path d="M55 40 L75 40 M65 30 L65 50" stroke="white" stroke-width="4" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h2 class="text-4xl font-game text-sky-600 mb-4">READY PROFESSOR?</h2>
+            <p class="text-sky-900 text-lg mb-8 font-semibold leading-relaxed">Sort 10 substances accurately, then neutralize 3 mystery liquids to win!</p>
+            <button onclick="startGame()" class="bg-sky-500 hover:bg-sky-600 text-white font-game py-4 px-12 rounded-full text-2xl transition-all hover:scale-105 shadow-2xl active:scale-95">
+                START LAB
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Game State ---
+        let state = {
+            score: 0,
+            phase: 1,
+            currentPH: 3.0,
+            isDragging: false,
+            missionNumber: 0,
+            maxMissions: 3,
+            isWinning: false,
+            items: [
+                // ACIDS
+                { name: 'Lemon Juice', type: 'acid', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="#fde047"/><path d="M50 15 L50 25 M85 50 L75 50 M15 50 L25 50 M50 85 L50 75" stroke="#ca8a04" stroke-width="4" stroke-linecap="round"/></svg>` },
+                { name: 'Vinegar', type: 'acid', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><path d="M40 20 L60 20 L70 80 L30 80 Z" fill="#fb923c"/><rect x="42" y="10" width="16" height="10" fill="#7c2d12"/></svg>` },
+                { name: 'Hydrochloric Acid', type: 'acid', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><path d="M35 20 L65 20 L80 85 L20 85 Z" fill="#ef4444"/><text x="50" y="60" text-anchor="middle" fill="white" font-weight="bold" font-size="18">HCl</text></svg>` },
+                { name: 'Orange Juice', type: 'acid', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><circle cx="50" cy="55" r="30" fill="#f97316"/><path d="M50 25 L50 15 L60 10" stroke="#166534" stroke-width="4" fill="none"/></svg>` },
+                { name: 'Fizzy Soda', type: 'acid', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><rect x="30" y="25" width="40" height="60" rx="5" fill="#ec4899"/><rect x="35" y="15" width="30" height="10" fill="#d1d5db"/><circle cx="50" cy="45" r="10" fill="white" opacity="0.3"/></svg>` },
+                // ALKALIS
+                { name: 'Soap Water', type: 'alkali', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><rect x="25" y="30" width="50" height="40" rx="10" fill="#38bdf8"/><path d="M35 40 Q50 45 65 40" stroke="white" stroke-width="3" fill="none"/></svg>` },
+                { name: 'Toothpaste', type: 'alkali', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><path d="M20 70 L80 70 L75 30 Q50 20 25 30 Z" fill="#94a3b8"/><rect x="40" y="20" width="20" height="8" fill="#e2e8f0"/></svg>` },
+                { name: 'Sodium Hydroxide', type: 'alkali', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><path d="M35 20 L65 20 L80 85 L20 85 Z" fill="#3b82f6"/><text x="50" y="60" text-anchor="middle" fill="white" font-weight="bold" font-size="18">NaOH</text></svg>` },
+                { name: 'Baking Soda', type: 'alkali', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><rect x="25" y="20" width="50" height="65" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/><rect x="25" y="35" width="50" height="20" fill="#3b82f6"/><text x="50" y="49" text-anchor="middle" fill="white" font-size="10" font-weight="bold">ALKALINE</text></svg>` },
+                { name: 'Window Cleaner', type: 'alkali', svg: `<svg width="90" height="90" viewBox="0 0 100 100"><path d="M40 40 L60 40 L65 85 L35 85 Z" fill="#0ea5e9"/><path d="M45 40 L45 25 L35 25 L35 32" stroke="#64748b" stroke-width="6" fill="none"/><rect x="42" y="30" width="16" height="10" rx="2" fill="#94a3b8"/></svg>` }
+            ],
+            currentItem: null
+        };
+
+        // --- Audio ---
+        let audioCtx;
+        const initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); };
+        const playTone = (freq, type = 'sine', duration = 0.1) => {
+            if(!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        };
+        const playPop = () => playTone(800 + Math.random() * 400, 'triangle', 0.05);
+        const playDing = () => { playTone(523.25, 'sine', 0.5); setTimeout(() => playTone(659.25, 'sine', 0.5), 100); };
+        const playBloop = () => {
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+            const g = audioCtx.createGain();
+            g.gain.setValueAtTime(0.1, now);
+            g.gain.linearRampToValueAtTime(0, now + 0.1);
+            osc.connect(g);
+            g.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(now + 0.1);
+        };
+
+        const draggable = document.getElementById('draggable-item');
+        const tankAcid = document.getElementById('tank-acid');
+        const tankAlkali = document.getElementById('tank-alkali');
+        const reactionLiquid = document.getElementById('reaction-liquid');
+        const phValueEl = document.getElementById('ph-value');
+        const phIndicatorEl = document.getElementById('ph-indicator');
+
+        function startGame() {
+            initAudio();
+            document.getElementById('overlay').classList.add('hidden');
+            nextSortingItem();
+        }
+
+        function updateScore(points) {
+            state.score += points;
+            document.getElementById('score-val').innerText = state.score;
+        }
+
+        function nextSortingItem() {
+            if (state.items.length === 0) {
+                transitionToPhase2();
+                return;
+            }
+            const idx = Math.floor(Math.random() * state.items.length);
+            state.currentItem = state.items.splice(idx, 1)[0];
+            
+            document.getElementById('item-graphic').innerHTML = state.currentItem.svg;
+            document.getElementById('item-label').innerText = state.currentItem.name;
+            draggable.style.transform = 'translate(0, 0)';
+            draggable.style.opacity = '1';
+        }
+
+        // --- Interaction Logic ---
+        let startX, startY;
+        draggable.addEventListener('mousedown', dragStart);
+        draggable.addEventListener('touchstart', dragStart, { passive: false });
+
+        function dragStart(e) {
+            if(state.phase !== 1) return;
+            state.isDragging = true;
+            const touch = e.type === 'touchstart' ? e.touches[0] : e;
+            startX = touch.clientX; startY = touch.clientY;
+            document.addEventListener('mousemove', dragMove);
+            document.addEventListener('touchmove', dragMove, { passive: false });
+            document.addEventListener('mouseup', dragEnd);
+            document.addEventListener('touchend', dragEnd);
+            playPop();
+        }
+
+        function dragMove(e) {
+            if (!state.isDragging) return;
+            e.preventDefault();
+            const touch = e.type === 'touchmove' ? e.touches[0] : e;
+            const dx = touch.clientX - startX; const dy = touch.clientY - startY;
+            draggable.style.transform = `translate(${dx}px, ${dy}px) scale(1.1)`;
+            const rect = draggable.getBoundingClientRect();
+            checkHover(rect, tankAcid);
+            checkHover(rect, tankAlkali);
+        }
+
+        function checkHover(rect, tank) {
+            const tRect = tank.getBoundingClientRect();
+            if (rect.right > tRect.left && rect.left < tRect.right && rect.bottom > tRect.top && rect.top < tRect.bottom) tank.classList.add('active');
+            else tank.classList.remove('active');
+        }
+
+        function dragEnd() {
+            state.isDragging = false;
+            document.removeEventListener('mousemove', dragMove);
+            document.removeEventListener('touchmove', dragMove);
+            const rect = draggable.getBoundingClientRect();
+            if (isOver(rect, tankAcid)) handleDrop('acid');
+            else if (isOver(rect, tankAlkali)) handleDrop('alkali');
+            else draggable.style.transform = 'translate(0,0)';
+            tankAcid.classList.remove('active'); tankAlkali.classList.remove('active');
+        }
+
+        function isOver(rect, target) {
+            const t = target.getBoundingClientRect();
+            return rect.right > t.left && rect.left < t.right && rect.bottom > t.top && rect.top < t.bottom;
+        }
+
+        function handleDrop(tankType) {
+            if (state.currentItem.type === tankType) {
+                showFeedback('CORRECT!', 'text-green-500');
+                updateScore(10);
+                playDing();
+                const fill = tankType === 'acid' ? tankAcid.querySelector('.beaker-liquid') : tankAlkali.querySelector('.beaker-liquid');
+                const currentH = parseInt(fill.style.height);
+                fill.style.height = Math.min(90, currentH + 15) + '%';
+                draggable.style.opacity = '0';
+                setTimeout(nextSortingItem, 500);
+            } else {
+                showFeedback('WRONG!', 'text-red-500');
+                document.getElementById('game-container').classList.add('shake');
+                playTone(150, 'sawtooth', 0.2);
+                setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 500);
+                draggable.style.transform = 'translate(0,0)';
+            }
+        }
+
+        function showFeedback(text, colorClass) {
+            const el = document.createElement('div');
+            el.className = `text-6xl font-game ${colorClass} animate-bounce pointer-events-none drop-shadow-lg`;
+            el.innerText = text;
+            document.getElementById('feedback').appendChild(el);
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        function transitionToPhase2() {
+            state.phase = 2;
+            document.getElementById('sorting-phase').classList.add('hidden');
+            document.getElementById('neutralization-phase').classList.remove('hidden');
+            document.getElementById('mission-counter').classList.remove('hidden');
+            document.getElementById('phase-title').innerText = "Phase 2: Neutralization Chamber";
+            startNewMission();
+        }
+
+        function startNewMission() {
+            state.isWinning = false;
+            state.missionNumber++;
+            document.getElementById('mission-num').innerText = state.missionNumber;
+            
+            const badge = document.getElementById('neutral-badge');
+            badge.classList.remove('scale-100', 'opacity-100');
+            badge.classList.add('scale-50', 'opacity-0');
+            
+            if (Math.random() > 0.5) {
+                state.currentPH = 1.0 + Math.random() * 2;
+                document.getElementById('goal-text').innerText = "SOLUTION IS TOO ACIDIC!";
+                document.getElementById('goal-text').className = "text-red-600 font-game text-2xl mb-4 animate-pulse";
+            } else {
+                state.currentPH = 11.0 + Math.random() * 2;
+                document.getElementById('goal-text').innerText = "SOLUTION IS TOO ALKALIC!";
+                document.getElementById('goal-text').className = "text-blue-600 font-game text-2xl mb-4 animate-pulse";
+            }
+            updatePHDisplay();
+        }
+
+        function updatePHDisplay() {
+            phValueEl.innerText = state.currentPH.toFixed(1);
+            let r, g, b;
+            if (state.currentPH < 7) {
+                const ratio = state.currentPH / 7;
+                r = 239; g = Math.floor(68 + (150 * ratio)); b = Math.floor(68 - (68 * ratio));
+            } else {
+                const ratio = (state.currentPH - 7) / 7;
+                r = Math.floor(218 - (180 * ratio)); g = Math.floor(218 - (100 * ratio)); b = Math.floor(0 + (255 * ratio));
+            }
+            const color = `rgb(${r}, ${g}, ${b})`;
+            reactionLiquid.style.backgroundColor = color;
+            phIndicatorEl.style.backgroundColor = color;
+            
+            const diff = Math.abs(7 - state.currentPH);
+            document.getElementById('progress-bar').style.width = Math.max(0, 100 - (diff * 15)) + '%';
+            
+            if (diff < 0.2 && !state.isWinning) handleMissionWin();
+        }
+
+        function handleMissionWin() {
+            state.isWinning = true;
+            state.currentPH = 7.0;
+            phValueEl.innerText = "7.0";
+            reactionLiquid.style.backgroundColor = "#22c55e";
+            phIndicatorEl.style.backgroundColor = "#22c55e";
+            
+            const badge = document.getElementById('neutral-badge');
+            badge.classList.remove('opacity-0', 'scale-50');
+            badge.classList.add('scale-100', 'opacity-100');
+            
+            document.getElementById('goal-text').innerText = "NEUTRALIZED!";
+            document.getElementById('goal-text').className = "text-green-600 font-game text-2xl mb-4";
+            
+            playDing();
+            updateScore(50);
+            
+            setTimeout(() => {
+                if (state.missionNumber < state.maxMissions) startNewMission();
+                else handleFinalWin();
+            }, 2500);
+        }
+
+        function handleFinalWin() {
+            document.getElementById('final-score').innerText = state.score;
+            document.getElementById('result-modal').classList.remove('hidden');
+            playDing();
+        }
+
+        function addDrop(type) {
+            if (state.phase !== 2 || state.isWinning) return;
+            playBloop();
+            state.currentPH += (type === 'acid' ? -0.4 : 0.4);
+            state.currentPH = Math.max(0, Math.min(14, state.currentPH));
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            const size = Math.random() * 15 + 5;
+            bubble.style.width = size + 'px'; bubble.style.height = size + 'px';
+            bubble.style.left = Math.random() * 80 + 10 + '%';
+            bubble.style.setProperty('--duration', (Math.random() * 1 + 0.5) + 's');
+            reactionLiquid.appendChild(bubble);
+            setTimeout(() => bubble.remove(), 2000);
+            updatePHDisplay();
+        }
+
+        document.getElementById('btn-acid').addEventListener('click', () => addDrop('acid'));
+        document.getElementById('btn-alkali').addEventListener('click', () => addDrop('alkali'));
+    </script>
+</body>
+</html>
