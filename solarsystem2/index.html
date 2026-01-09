@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Explorer: Solar System Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #0a0a2e 0%, #000000 100%);
+            font-family: 'Quicksand', sans-serif;
+            color: white;
+            user-select: none;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Fredoka One', cursive;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: twinkle var(--duration) infinite ease-in-out;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* Shooting Star Styling */
+        .shooting-star {
+            position: absolute;
+            width: 100px;
+            height: 2px;
+            background: linear-gradient(90deg, rgba(255,255,255,1), transparent);
+            border-radius: 2px;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0;
+            transform: rotate(-45deg);
+        }
+
+        @keyframes shoot {
+            0% { transform: translate(0, 0) rotate(-45deg) scaleX(0); opacity: 0; }
+            5% { transform: translate(0, 0) rotate(-45deg) scaleX(1); opacity: 1; }
+            70% { opacity: 1; }
+            100% { transform: translate(-400px, 400px) rotate(-45deg) scaleX(2); opacity: 0; }
+        }
+
+        .planet-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            cursor: pointer;
+            will-change: transform;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .planet-wrapper {
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .planet-container:hover .planet-wrapper {
+            transform: scale(1.25);
+        }
+
+        .orbit {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .nebula {
+            position: absolute;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(123, 31, 162, 0.08) 0%, transparent 70%);
+            filter: blur(60px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        #solar-system {
+            transition: filter 0.5s ease, opacity 0.5s ease;
+        }
+
+        #solar-system.blurred {
+            filter: blur(10px);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .interactive { pointer-events: auto; }
+
+        .bubbly-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Enhanced Blur for the Panel as requested and Centering */
+        #info-panel {
+            backdrop-filter: blur(24px) saturate(180%);
+            background: rgba(15, 23, 42, 0.6);
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        @keyframes bounce-in {
+            0% { transform: translate(-50%, -40%) scale(0.9); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .animate-pop {
+            animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Fact Grid Styling */
+        .fact-box {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 8px 12px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="stars"></div>
+    <div id="shooting-stars"></div>
+    <div class="nebula" style="top: -10%; left: -10%;"></div>
+    <div class="nebula" style="bottom: -10%; right: -10%; background: radial-gradient(circle, rgba(21, 101, 192, 0.08) 0%, transparent 70%);"></div>
+    
+    <div id="solar-system" class="w-full h-full relative transition-transform duration-700 ease-out"></div>
+
+    <!-- UI Layer -->
+    <div id="ui-layer" class="p-8 flex flex-col justify-between h-full">
+        <div class="flex justify-between items-start">
+            <div id="progress-card" class="interactive bubbly-card p-6 w-72">
+                <h1 class="text-2xl text-yellow-400 mb-1">Cosmic Explorer</h1>
+                <p id="progress-label" class="text-sm opacity-80">Collection Progress</p>
+                <div class="w-full bg-white/10 h-3 rounded-full mt-2 overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <div id="stat-count" class="mt-2 text-xs font-bold uppercase tracking-wider">0 / 8 Planets Scanned</div>
+            </div>
+
+            <div class="interactive flex flex-col gap-3">
+                <button onclick="resetGame()" class="bubbly-card px-4 py-2 hover:bg-white/20 transition-colors text-sm">Reset Mission</button>
+            </div>
+        </div>
+
+        <!-- Planet Info Panel (Blurred & Centralized) -->
+        <div id="info-panel" class="hidden interactive bubbly-card p-8 max-w-2xl w-full flex flex-col md:flex-row gap-8 items-center animate-pop">
+            <div id="panel-planet-icon" class="w-40 h-40 flex-shrink-0 flex items-center justify-center drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]"></div>
+            <div class="flex-1">
+                <div class="flex justify-between items-start mb-2">
+                    <h2 id="panel-name" class="text-4xl text-white">Earth</h2>
+                    <div id="panel-tags" class="flex gap-2"></div>
+                </div>
+                <p id="panel-desc" class="text-sm text-blue-50/90 leading-relaxed mb-6"></p>
+                
+                <!-- Detailed Facts Grid -->
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="fact-box">
+                        <span class="text-[10px] uppercase font-bold text-cyan-400 block mb-1">Orbital Period</span>
+                        <span id="fact-orbit" class="text-sm font-semibold">365 Days</span>
+                    </div>
+                    <div class="fact-box">
+                        <span class="text-[10px] uppercase font-bold text-cyan-400 block mb-1">Diameter</span>
+                        <span id="fact-diameter" class="text-sm font-semibold">12,742 km</span>
+                    </div>
+                    <div class="fact-box">
+                        <span class="text-[10px] uppercase font-bold text-cyan-400 block mb-1">Dist. from Earth</span>
+                        <span id="fact-dist" class="text-sm font-semibold">0 km</span>
+                    </div>
+                    <div class="fact-box">
+                        <span class="text-[10px] uppercase font-bold text-cyan-400 block mb-1">Avg. Temp</span>
+                        <span id="fact-temp" class="text-sm font-semibold">15°C</span>
+                    </div>
+                </div>
+
+                <button onclick="closePanel()" class="w-full bg-white text-blue-900 py-3 rounded-full font-bold hover:scale-[1.02] active:scale-95 transition-transform shadow-lg">Scan Complete</button>
+            </div>
+        </div>
+
+        <div class="text-center opacity-40 text-[10px] tracking-[0.3em] font-bold uppercase">
+            Pan with Mouse • Tap Planets to View Data
+        </div>
+    </div>
+</div>
+
+<!-- Intro Modal -->
+<div id="intro-modal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl">
+    <div id="modal-content" class="bubbly-card p-12 max-w-lg text-center mx-4">
+        <div class="inline-block mb-8">
+            <svg id="modal-icon" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="#4fd1c5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+                <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+                <path d="M9 12H4s.55-3.03 2-5c1.62-2.2 5-3 5-3"/>
+                <path d="M12 15v5s3.03-.55 5-2c2.2-1.62 3-5 3-5"/>
+            </svg>
+        </div>
+        <h2 id="modal-title" class="text-4xl mb-4">Solar Mission</h2>
+        <p id="modal-desc" class="text-lg opacity-70 mb-10 leading-relaxed">Navigate the void and document the 8 primary planets of our system.</p>
+        <div id="modal-actions" class="flex flex-col gap-4">
+            <button onclick="startGame()" class="w-full bg-gradient-to-r from-cyan-400 to-blue-500 py-4 rounded-2xl text-xl font-bold hover:shadow-[0_0_30px_rgba(79,209,197,0.4)] transition-all">Engage Engines</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let isFreeExplore = false;
+    
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'scan') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'click') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+    }
+
+    const planetData = [
+        { 
+            name: "Mercury", size: 14, color: "#9E9E9E", distance: 90, speed: 0.035, 
+            desc: "The smallest and innermost planet, covered in craters from billions of years of impacts.", 
+            tags: ["Smallest", "Rocky"],
+            orbit: "88 Days", diameter: "4,879 km", distFromEarth: "77m km", temp: "167°C"
+        },
+        { 
+            name: "Venus", size: 24, color: "#FFD54F", distance: 140, speed: 0.025, 
+            desc: "The hottest planet in our solar system, with a thick toxic atmosphere that traps heat.", 
+            tags: ["Hottest", "Acidic"],
+            orbit: "225 Days", diameter: "12,104 km", distFromEarth: "41m km", temp: "464°C"
+        },
+        { 
+            name: "Earth", size: 26, color: "#1E88E5", distance: 200, speed: 0.018, 
+            desc: "Our home world, the only known planet with liquid water and life.", 
+            tags: ["Life", "Water"],
+            orbit: "365 Days", diameter: "12,742 km", distFromEarth: "0 km", temp: "15°C"
+        },
+        { 
+            name: "Mars", size: 18, color: "#F4511E", distance: 260, speed: 0.014, 
+            desc: "The Red Planet, home to the solar system's largest volcano and giant dust storms.", 
+            tags: ["Red", "Dusty"],
+            orbit: "687 Days", diameter: "6,779 km", distFromEarth: "225m km", temp: "-65°C"
+        },
+        { 
+            name: "Jupiter", size: 55, color: "#D4A373", distance: 360, speed: 0.008, 
+            desc: "The king of planets, a gas giant so large it could contain all other planets twice over.", 
+            tags: ["Giant", "Bands"],
+            orbit: "12 Years", diameter: "139,820 km", distFromEarth: "628m km", temp: "-110°C"
+        },
+        { 
+            name: "Saturn", size: 48, color: "#FFCA28", distance: 480, speed: 0.005, 
+            desc: "Famous for its stunning ring system composed of billions of ice and rock particles.", 
+            tags: ["Rings", "Lighter"],
+            orbit: "29 Years", diameter: "116,460 km", distFromEarth: "1.2b km", temp: "-140°C"
+        },
+        { 
+            name: "Uranus", size: 34, color: "#4DD0E1", distance: 580, speed: 0.003, 
+            desc: "An ice giant that orbits the sun on its side, giving it extreme seasonal changes.", 
+            tags: ["Tilted", "Icy"],
+            orbit: "84 Years", diameter: "50,724 km", distFromEarth: "2.6b km", temp: "-195°C"
+        },
+        { 
+            name: "Neptune", size: 34, color: "#3949AB", distance: 680, speed: 0.002, 
+            desc: "A cold, dark, and windy world, the most distant major planet from the sun.", 
+            tags: ["Winds", "Stormy"],
+            orbit: "165 Years", diameter: "49,244 km", distFromEarth: "4.3b km", temp: "-201°C"
+        }
+    ];
+
+    let scannedPlanets = new Set();
+    const solarSystem = document.getElementById('solar-system');
+    const starsContainer = document.getElementById('stars');
+
+    function createStars() {
+        for (let i = 0; i < 250; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            const x = Math.random() * 100;
+            const y = Math.random() * 100;
+            const size = 1 + Math.random() * 2;
+            const duration = 2 + Math.random() * 3;
+            star.style.left = `${x}%`;
+            star.style.top = `${y}%`;
+            star.style.width = `${size}px`;
+            star.style.height = `${size}px`;
+            star.style.setProperty('--duration', `${duration}s`);
+            starsContainer.appendChild(star);
+        }
+    }
+
+    function spawnShootingStar() {
+        const container = document.getElementById('shooting-stars');
+        const star = document.createElement('div');
+        star.className = 'shooting-star';
+        
+        const startX = Math.random() * window.innerWidth + 200;
+        const startY = Math.random() * window.innerHeight / 2;
+        const duration = 1 + Math.random() * 2;
+
+        star.style.left = startX + 'px';
+        star.style.top = startY + 'px';
+        star.style.animation = `shoot ${duration}s ease-out forwards`;
+
+        container.appendChild(star);
+        setTimeout(() => star.remove(), duration * 1000);
+        
+        // Random next shooting star
+        setTimeout(spawnShootingStar, Math.random() * 5000 + 2000);
+    }
+
+    function createPlanetSVG(planet, isForPanel = false) {
+        let details = '';
+        const idSuffix = isForPanel ? 'panel' : 'orbit';
+        const gradId = `grad-${planet.name}-${idSuffix}`;
+        const clipId = `clip-saturn-${idSuffix}`;
+
+        if (planet.name === 'Mercury') {
+            details = `
+                <circle cx="50" cy="40" r="4" fill="rgba(0,0,0,0.15)" />
+                <circle cx="60" cy="30" r="6" fill="rgba(0,0,0,0.1)" />
+                <circle cx="50" cy="70" r="3" fill="rgba(0,0,0,0.2)" />
+            `;
+        } else if (planet.name === 'Venus') {
+            details = `
+                <path d="M20 40 Q 50 35 80 40" stroke="rgba(255,255,255,0.2)" fill="none" stroke-width="6" />
+                <path d="M10 60 Q 50 65 90 60" stroke="rgba(255,160,0,0.3)" fill="none" stroke-width="8" />
+            `;
+        } else if (planet.name === 'Earth') {
+            details = `
+                <path d="M30 40 Q 45 30 50 45 T 60 70" fill="#43A047" opacity="0.6" />
+                <path d="M65 30 Q 75 40 70 50 T 85 60" fill="#66BB6A" opacity="0.5" />
+                <path d="M20 20 Q 40 25 35 35" stroke="white" stroke-width="2" opacity="0.4" stroke-linecap="round" />
+            `;
+        } else if (planet.name === 'Mars') {
+            details = `
+                <circle cx="50" cy="20" r="8" fill="white" opacity="0.3" />
+                <circle cx="40" cy="50" r="4" fill="rgba(0,0,0,0.2)" />
+                <circle cx="65" cy="45" r="3" fill="rgba(0,0,0,0.2)" />
+            `;
+        } else if (planet.name === 'Jupiter') {
+            details = `
+                <rect x="10" y="30" width="80" height="5" fill="rgba(0,0,0,0.1)" />
+                <rect x="10" y="45" width="80" height="8" fill="rgba(255,255,255,0.08)" />
+                <rect x="10" y="65" width="80" height="4" fill="rgba(0,0,0,0.15)" />
+                <circle cx="70" cy="55" r="8" fill="#D84315" opacity="0.6" />
+            `;
+        } else if (planet.name === 'Saturn') {
+            details = `<rect x="15" y="45" width="70" height="10" fill="rgba(255,255,255,0.05)" />`;
+        } else if (planet.name === 'Uranus') {
+            details = `<rect x="20" y="20" width="60" height="60" fill="rgba(255,255,255,0.1)" rx="30" opacity="0.2" />`;
+        } else if (planet.name === 'Neptune') {
+            details = `
+                <circle cx="35" cy="45" r="10" fill="#1A237E" opacity="0.4" />
+                <path d="M20 60 H 80" stroke="white" opacity="0.1" stroke-width="2" />
+            `;
+        }
+
+        let svgContent = '';
+        if (planet.name === 'Saturn') {
+            // BACK RINGS (Behind the planet)
+            const ringBack = `
+                <ellipse cx="50" cy="50" rx="65" ry="18" fill="none" stroke="rgba(244,241,222,0.4)" stroke-width="4" transform="rotate(-25 50 50)" />
+                <ellipse cx="50" cy="50" rx="55" ry="15" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="6" transform="rotate(-25 50 50)" />
+            `;
+            // FRONT RINGS (In front of the planet - clipped to bottom half)
+            const ringFront = `
+                <ellipse cx="50" cy="50" rx="65" ry="18" fill="none" stroke="rgba(244,241,222,0.4)" stroke-width="4" transform="rotate(-25 50 50)" clip-path="url(#${clipId})" />
+                <ellipse cx="50" cy="50" rx="55" ry="15" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="6" transform="rotate(-25 50 50)" clip-path="url(#${clipId})" />
+            `;
+            
+            svgContent = `
+                <defs>
+                    <clipPath id="${clipId}"><rect x="-25" y="50" width="150" height="75" /></clipPath>
+                    <radialGradient id="${gradId}" cx="35%" cy="35%" r="65%">
+                        <stop offset="0%" style="stop-color:white;stop-opacity:0.3" />
+                        <stop offset="100%" style="stop-color:black;stop-opacity:0.5" />
+                    </radialGradient>
+                </defs>
+                ${ringBack}
+                <circle cx="50" cy="50" r="40" fill="${planet.color}" />
+                ${details}
+                <circle cx="50" cy="50" r="40" fill="url(#${gradId})" />
+                ${ringFront}
+            `;
+        } else {
+            svgContent = `
+                <defs>
+                    <radialGradient id="${gradId}" cx="35%" cy="35%" r="65%">
+                        <stop offset="0%" style="stop-color:white;stop-opacity:0.3" />
+                        <stop offset="100%" style="stop-color:black;stop-opacity:0.5" />
+                    </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="40" fill="${planet.color}" />
+                ${details}
+                <circle cx="50" cy="50" r="40" fill="url(#${gradId})" />
+            `;
+        }
+
+        const svgWidth = isForPanel ? "100%" : planet.size * 3;
+        const svgHeight = isForPanel ? "100%" : planet.size * 3;
+
+        return `
+            <svg viewBox="-25 -25 150 150" width="${svgWidth}" height="${svgHeight}" style="overflow: visible;">
+                ${svgContent}
+            </svg>
+        `;
+    }
+
+    function initSystem() {
+        const sun = document.createElement('div');
+        sun.className = 'planet-container';
+        sun.style.transform = 'translate(-50%, -50%)';
+        sun.innerHTML = `
+            <div class="planet-wrapper">
+                <svg viewBox="0 0 100 100" width="100" height="100">
+                    <defs>
+                        <filter id="sun-glow">
+                            <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="blur" />
+                            <feFlood flood-color="#FFD54F" result="flood" />
+                            <feComposite in="flood" in2="blur" operator="in" />
+                            <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+                        </filter>
+                    </defs>
+                    <circle cx="50" cy="50" r="40" fill="#FFEB3B" filter="url(#sun-glow)">
+                        <animate attributeName="r" values="38;42;38" dur="4s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="50" cy="50" r="32" fill="#FF9800" opacity="0.8" />
+                </svg>
+            </div>
+        `;
+        solarSystem.appendChild(sun);
+
+        planetData.forEach((planet, index) => {
+            const orbit = document.createElement('div');
+            orbit.className = 'orbit';
+            orbit.style.width = `${planet.distance * 2}px`;
+            orbit.style.height = `${planet.distance * 2}px`;
+            solarSystem.appendChild(orbit);
+
+            const container = document.createElement('div');
+            container.className = 'planet-container';
+            container.id = `planet-${index}`;
+            container.innerHTML = `<div class="planet-wrapper">${createPlanetSVG(planet)}</div>`;
+            
+            container.onclick = (e) => {
+                e.stopPropagation();
+                scanPlanet(index);
+            };
+
+            solarSystem.appendChild(container);
+        });
+    }
+
+    function animate() {
+        const time = Date.now() * 0.001;
+        planetData.forEach((planet, index) => {
+            const container = document.getElementById(`planet-${index}`);
+            const currentAngle = time * planet.speed * 5; 
+            const x = Math.cos(currentAngle) * planet.distance;
+            const y = Math.sin(currentAngle) * planet.distance;
+            container.style.transform = `translate3d(calc(-50% + ${x}px), calc(-50% + ${y}px), 0)`;
+        });
+        requestAnimationFrame(animate);
+    }
+
+    window.onmousemove = (e) => {
+        const tiltX = (e.clientY / window.innerHeight - 0.5) * 15;
+        const tiltY = (e.clientX / window.innerWidth - 0.5) * -15;
+        solarSystem.style.transform = `perspective(1200px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+    };
+
+    function scanPlanet(index) {
+        const planet = planetData[index];
+        if (!isFreeExplore) {
+            scannedPlanets.add(index);
+            const progress = (scannedPlanets.size / planetData.length) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            document.getElementById('stat-count').innerText = `${scannedPlanets.size} / 8 Planets Scanned`;
+        }
+        
+        playSound('scan');
+
+        // Apply blur to solar system
+        document.getElementById('solar-system').classList.add('blurred');
+
+        const panel = document.getElementById('info-panel');
+        document.getElementById('panel-name').innerText = planet.name;
+        document.getElementById('panel-desc').innerText = planet.desc;
+        // Specifically create centered SVG for panel
+        document.getElementById('panel-planet-icon').innerHTML = createPlanetSVG(planet, true);
+        
+        // Update specific facts
+        document.getElementById('fact-orbit').innerText = planet.orbit;
+        document.getElementById('fact-diameter').innerText = planet.diameter;
+        document.getElementById('fact-dist').innerText = planet.distFromEarth;
+        document.getElementById('fact-temp').innerText = planet.temp;
+        
+        const tagsContainer = document.getElementById('panel-tags');
+        tagsContainer.innerHTML = planet.tags.map(t => `<span class="bg-cyan-500/20 text-cyan-200 text-[9px] px-2 py-1 rounded-full uppercase font-bold tracking-widest border border-cyan-500/30">${t}</span>`).join('');
+
+        panel.classList.remove('hidden');
+        panel.classList.add('flex');
+    }
+
+    function closePanel() {
+        playSound('click');
+        
+        // Remove blur from solar system
+        document.getElementById('solar-system').classList.remove('blurred');
+
+        const panel = document.getElementById('info-panel');
+        panel.classList.add('hidden');
+        panel.classList.remove('flex');
+        
+        if (scannedPlanets.size === 8 && !isFreeExplore) {
+            setTimeout(showVictory, 600);
+        }
+    }
+
+    function startGame() {
+        playSound('click');
+        document.getElementById('intro-modal').style.display = 'none';
+        isFreeExplore = false;
+    }
+
+    function freeExploreMode() {
+        playSound('click');
+        isFreeExplore = true;
+        document.getElementById('intro-modal').style.display = 'none';
+        
+        // Update UI to show free mode
+        document.getElementById('progress-label').innerText = "Explorer Mode";
+        document.getElementById('stat-count').innerText = "Free Roam Enabled";
+        document.getElementById('progress-bar').style.width = '100%';
+        document.getElementById('progress-bar').classList.remove('from-cyan-400');
+        document.getElementById('progress-bar').classList.add('from-yellow-400');
+    }
+
+    function resetGame() {
+        playSound('click');
+        scannedPlanets.clear();
+        isFreeExplore = false;
+        document.getElementById('progress-label').innerText = "Collection Progress";
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('progress-bar').classList.add('from-cyan-400');
+        document.getElementById('progress-bar').classList.remove('from-yellow-400');
+        document.getElementById('stat-count').innerText = `0 / 8 Planets Scanned`;
+        
+        // Reset Modal to original state
+        document.getElementById('modal-title').innerText = "Solar Mission";
+        document.getElementById('modal-desc').innerText = "Navigate the void and document the 8 primary planets of our system.";
+        document.getElementById('modal-actions').innerHTML = `
+            <button onclick="startGame()" class="w-full bg-gradient-to-r from-cyan-400 to-blue-500 py-4 rounded-2xl text-xl font-bold hover:shadow-[0_0_30px_rgba(79,209,197,0.4)] transition-all">Engage Engines</button>
+        `;
+        
+        closePanel();
+    }
+
+    function showVictory() {
+        const modal = document.getElementById('intro-modal');
+        modal.style.display = 'flex';
+        
+        document.getElementById('modal-title').innerText = "Mission Success!";
+        document.getElementById('modal-desc').innerText = "All planetary data has been synchronized. Our database is now complete!";
+        
+        document.getElementById('modal-actions').innerHTML = `
+            <button onclick="freeExploreMode()" class="w-full bg-gradient-to-r from-cyan-400 to-blue-500 py-4 rounded-2xl text-xl font-bold transition-all">Free Explore</button>
+            <button onclick="resetGame(); startGame();" class="text-sm opacity-60 hover:opacity-100 transition-opacity">Restart Mission</button>
+        `;
+    }
+
+    window.onload = () => {
+        createStars();
+        spawnShootingStar();
+        initSystem();
+        animate();
+    };
+</script>
+
+</body>
+</html>

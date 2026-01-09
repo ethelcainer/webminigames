@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galaxy Quest: Enhanced Mission</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --space-bg: #020408; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Quicksand', sans-serif;
+            background: var(--space-bg);
+            color: white;
+            user-select: none;
+            touch-action: none;
+        }
+        h1, h2, .font-title { font-family: 'Fredoka One', cursive; }
+
+        #game-viewport {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #0a0f1d 0%, #020408 100%);
+            overflow: hidden;
+        }
+
+        /* Twinkling Stars */
+        .star { 
+            position: absolute; 
+            background: white; 
+            border-radius: 50%; 
+            animation: twinkle var(--duration) infinite ease-in-out;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        .debris { position: absolute; pointer-events: none; opacity: 0.6; }
+
+        .game-object {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            z-index: 20;
+            filter: drop-shadow(0 0 15px rgba(0,0,0,0.8));
+        }
+
+        .ship-mascot {
+            position: absolute;
+            pointer-events: none;
+            z-index: 100;
+            filter: drop-shadow(0 0 25px rgba(56, 189, 248, 0.6));
+        }
+
+        .ui-glass {
+            background: rgba(7, 10, 20, 0.8);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 28px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        .floating { animation: float 5s infinite ease-in-out; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(-2deg); }
+            50% { transform: translateY(-15px) rotate(2deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-viewport">
+    <div id="star-layer" class="absolute inset-0 pointer-events-none"></div>
+    <div id="debris-layer" class="absolute inset-0 pointer-events-none"></div>
+
+    <div id="screen-start" class="absolute inset-0 flex flex-col items-center justify-center z-[150] bg-slate-950/90 backdrop-blur-xl">
+        <div class="mb-8 floating">
+            <svg width="140" height="140" viewBox="0 0 100 100">
+                <defs>
+                    <linearGradient id="shipGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#f8fafc"/>
+                        <stop offset="100%" style="stop-color:#cbd5e1"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="50" cy="40" r="35" fill="url(#shipGrad)"/>
+                <path d="M20 40 Q50 10 80 40" fill="none" stroke="#334155" stroke-width="2" opacity="0.3"/>
+                <rect x="25" y="35" width="50" height="15" rx="8" fill="#1e293b"/>
+                <circle cx="35" cy="42" r="2" fill="#60a5fa"/>
+                <circle cx="65" cy="42" r="2" fill="#60a5fa"/>
+                <path d="M30 75 L15 95 M70 75 L85 95" stroke="#f8fafc" stroke-width="8" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <h1 class="text-7xl md:text-8xl mb-4 text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-blue-500 font-title text-center">GALAXY<br>QUEST</h1>
+        <p class="text-blue-300 text-lg mb-12 font-bold tracking-[0.3em] uppercase">Advanced Solar Mission</p>
+        <button onclick="startGame()" class="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-title px-16 py-5 rounded-full text-3xl shadow-[0_8px_0_#1e3a8a] transition-all transform hover:-translate-y-2 active:translate-y-1">LAUNCH SHIP</button>
+    </div>
+
+    <div id="hud" class="hidden absolute top-8 inset-x-8 z-[110] flex justify-between items-start pointer-events-none">
+        <div class="ui-glass px-8 py-4 flex items-center gap-6 pointer-events-auto">
+            <div class="flex flex-col">
+                <span class="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Mission Progress</span>
+                <div class="w-40 h-3 bg-white/5 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-gradient-to-r from-cyan-400 to-blue-600 w-0 transition-all duration-1000"></div>
+                </div>
+            </div>
+            <div id="score-text" class="font-title text-3xl text-white border-l border-white/10 pl-6">0000</div>
+        </div>
+        
+        <div id="mission-panel" class="ui-glass py-4 px-12 w-full max-w-2xl pointer-events-auto text-center border-r-4 border-cyan-500/40">
+            <h2 id="target-description" class="text-lg md:text-xl font-medium text-white/90 tracking-wide leading-none">Scanning deep space...</h2>
+        </div>
+    </div>
+
+    <div id="player-ship" class="ship-mascot hidden">
+        <svg width="60" height="60" viewBox="0 0 100 100">
+            <path d="M50 5 L90 90 L50 75 L10 90 Z" fill="#38bdf8" />
+            <path d="M50 5 L50 75 L10 90 Z" fill="#0ea5e9" />
+            <circle cx="50" cy="45" r="12" fill="white" opacity="0.9" />
+            <path d="M40 85 L50 100 L60 85" fill="#f59e0b" />
+        </svg>
+    </div>
+
+    <div id="game-field" class="absolute inset-0"></div>
+
+    <div id="screen-win" class="hidden absolute inset-0 flex flex-col items-center justify-center z-[200] bg-blue-950/95 backdrop-blur-3xl text-center">
+        <div class="w-32 h-32 bg-yellow-400 rounded-full flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(250,204,21,0.4)]">
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#1e3a8a" stroke-width="3">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        </div>
+        <h2 class="text-6xl font-title text-white mb-4">MISSION ACCOMPLISHED</h2>
+        <p class="text-cyan-200 text-xl mb-12 opacity-80">Solar System fully mapped by the Commander.</p>
+        <button onclick="location.reload()" class="bg-white text-blue-950 font-title px-12 py-4 rounded-full text-2xl hover:bg-cyan-400 transition-all">RESTART VOYAGE</button>
+    </div>
+</div>
+
+<script>
+    const celestialData = [
+        { name: "Sun", color: "#f59e0b", size: 130, desc: "Locate the massive star that provides light and heat to our entire system!", type: 'star' },
+        { name: "Mercury", color: "#64748b", size: 45, desc: "Find the small, cratered rock closest to the Sun!", type: 'rocky' },
+        { name: "Venus", color: "#fbbf24", size: 70, desc: "Find the planet hidden by thick, yellowish clouds and extreme heat!", type: 'cloudy' },
+        { name: "Earth", color: "#2563eb", size: 75, desc: "Identity the 'Blue Marble'—the only planet known to host life!", type: 'earth' },
+        { name: "Mars", color: "#dc2626", size: 60, desc: "Find the dusty, red world with giant volcanoes and valleys!", type: 'mars' },
+        { name: "Jupiter", color: "#d97706", size: 115, desc: "Spot the largest gas giant with its famous swirling stripes!", type: 'gas' },
+        { name: "Saturn", color: "#eab308", size: 95, desc: "Seek out the golden giant surrounded by an incredible ring system!", type: 'ringed' },
+        { name: "Moon", color: "#cbd5e1", size: 35, desc: "Locate Earth's rocky companion that changes shape in the night sky!", type: 'moon' }
+    ];
+
+    let missions = [];
+    let currentMissionIndex = 0;
+    let score = 0;
+    let gameActive = false;
+
+    function initBackground() {
+        const starLayer = document.getElementById('star-layer');
+        const debrisLayer = document.getElementById('debris-layer');
+
+        for (let i = 0; i < 200; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            const size = Math.random() * 2 + 1;
+            star.style.width = size + 'px';
+            star.style.height = size + 'px';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.left = Math.random() * 100 + '%';
+            star.style.setProperty('--duration', (2 + Math.random() * 4) + 's');
+            starLayer.appendChild(star);
+        }
+
+        // Asteroids/Debris moving left to right like clouds
+        for (let i = 0; i < 15; i++) {
+            spawnDebris();
+        }
+    }
+
+    function spawnDebris() {
+        const debrisLayer = document.getElementById('debris-layer');
+        const deb = document.createElement('div');
+        deb.className = 'debris';
+        const size = 10 + Math.random() * 40;
+        deb.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 100 100">
+            <path d="M30 20 Q50 10 70 30 T80 70 T40 90 T20 50 Z" fill="#1e293b" opacity="0.5"/>
+        </svg>`;
+        
+        const startY = Math.random() * 100;
+        deb.style.top = startY + '%';
+        debrisLayer.appendChild(deb);
+
+        const duration = 20 + Math.random() * 40;
+        gsap.fromTo(deb, 
+            { x: -100 }, 
+            { 
+                x: window.innerWidth + 100, 
+                duration: duration, 
+                ease: "none", 
+                repeat: -1,
+                delay: -Math.random() * duration
+            }
+        );
+    }
+
+    function createPlanetSVG(data) {
+        const viewSize = 180;
+        const center = viewSize / 2;
+        const r = data.size / 2;
+        
+        let detail = "";
+        if(data.type === 'gas') {
+            detail = `<rect x="${center-r}" y="${center-10}" width="${r*2}" height="4" fill="white" opacity="0.2"/>
+                      <rect x="${center-r+5}" y="${center+10}" width="${r*2-10}" height="6" fill="black" opacity="0.1"/>`;
+        } else if(data.type === 'earth') {
+            detail = `<path d="M${center-15} ${center-20} Q${center} ${center-10} ${center+20} ${center-15}" fill="#22c55e" opacity="0.8"/>
+                      <path d="M${center-25} ${center+10} Q${center-5} ${center+25} ${center+10} ${center+15}" fill="#22c55e" opacity="0.8"/>`;
+        } else if(data.type === 'star') {
+            detail = `<circle cx="${center}" cy="${center}" r="${r+10}" fill="${data.color}" opacity="0.2">
+                        <animate attributeName="r" values="${r+10};${r+20};${r+10}" dur="3s" repeatCount="indefinite" />
+                      </circle>`;
+        } else if(data.type === 'moon' || data.type === 'rocky') {
+            detail = `<circle cx="${center-10}" cy="${center-10}" r="4" fill="black" opacity="0.1"/>
+                      <circle cx="${center+15}" cy="${center+5}" r="6" fill="black" opacity="0.1"/>`;
+        }
+
+        let svg = `<svg width="${viewSize}" height="${viewSize}" viewBox="0 0 ${viewSize} ${viewSize}">
+            <defs>
+                <radialGradient id="grad-${data.name}" cx="30%" cy="30%" r="70%">
+                    <stop offset="0%" stop-color="white" stop-opacity="0.3" />
+                    <stop offset="100%" stop-color="black" stop-opacity="0.6" />
+                </radialGradient>
+            </defs>`;
+
+        if (data.name === "Saturn") {
+            svg += `<ellipse cx="${center}" cy="${center}" rx="${r+35}" ry="15" fill="none" stroke="${data.color}" stroke-width="10" opacity="0.5" transform="rotate(-15 ${center} ${center})"/>`;
+        }
+
+        svg += `<circle cx="${center}" cy="${center}" r="${r}" fill="${data.color}" />`;
+        svg += `<g clip-path="circle(${r}px at ${center}px ${center}px)">${detail}</g>`;
+        svg += `<circle cx="${center}" cy="${center}" r="${r}" fill="url(#grad-${data.name})" />`;
+        svg += `</svg>`;
+        return svg;
+    }
+
+    function startGame() {
+        gameActive = true;
+        missions = [...celestialData].sort(() => Math.random() - 0.5); // Randomize Questions
+        
+        document.getElementById('screen-start').classList.add('hidden');
+        document.getElementById('hud').classList.remove('hidden');
+        document.getElementById('player-ship').classList.remove('hidden');
+        
+        window.addEventListener('mousemove', (e) => {
+            gsap.to("#player-ship", { x: e.clientX - 30, y: e.clientY - 30, duration: 0.8, ease: "power3.out" });
+        });
+
+        spawnPlanets();
+        updateMission();
+    }
+
+    function spawnPlanets() {
+        const field = document.getElementById('game-field');
+        field.innerHTML = '';
+        
+        celestialData.forEach((p, index) => {
+            const container = document.createElement('div');
+            container.className = 'game-object';
+            container.innerHTML = createPlanetSVG(p) + `<span class="mt-3 font-title text-white text-sm tracking-widest opacity-80 uppercase">${p.name}</span>`;
+            
+            // Distributed positions
+            const x = 10 + (index % 4) * 22;
+            const y = 20 + Math.floor(index / 4) * 35;
+            container.style.left = x + '%';
+            container.style.top = y + '%';
+
+            container.onclick = () => handleChoice(p, container);
+            field.appendChild(container);
+
+            gsap.to(container, {
+                y: "random(-15, 15)",
+                x: "random(-10, 10)",
+                duration: "random(3, 5)",
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut"
+            });
+        });
+    }
+
+    function updateMission() {
+        if (currentMissionIndex >= missions.length) return showWinScreen();
+        const target = missions[currentMissionIndex];
+        document.getElementById('target-description').innerText = target.desc;
+        gsap.fromTo("#mission-panel", { x: 50, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: "power2.out" });
+    }
+
+    function handleChoice(planet, element) {
+        if (!gameActive) return;
+        const target = missions[currentMissionIndex];
+        
+        if (planet.name === target.name) {
+            score += 250;
+            currentMissionIndex++;
+            document.getElementById('score-text').innerText = score.toString().padStart(4, '0');
+            document.getElementById('progress-bar').style.width = (currentMissionIndex / missions.length) * 100 + '%';
+            
+            gsap.to(element, { scale: 1.5, opacity: 0, duration: 0.4, onComplete: () => {
+                element.style.visibility = 'hidden';
+                updateMission();
+            }});
+        } else {
+            gsap.to(element, { x: "+=10", repeat: 3, yoyo: true, duration: 0.05, ease: "none" });
+        }
+    }
+
+    function showWinScreen() {
+        gameActive = false;
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('screen-win').classList.remove('hidden');
+    }
+
+    initBackground();
+</script>
+</body>
+</html>
